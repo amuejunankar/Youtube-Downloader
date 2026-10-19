@@ -1,0 +1,16 @@
+# YouTube Downloader - runtime + dev dependencies
+# Python 3.11 - 3.13 supported (tested on 3.13).
+#
+# yt-dlp is released very frequently to track YouTube changes; pin a recent
+# floor rather than an exact version so users can `pip install -U yt-dlp`
+# whenever extraction breaks.
+
+# --- Core runtime ---
+yt-dlp>=2025.1.15
+PySide6>=6.8,<7
+
+# --- Testing ---
+pytest>=8.0
+
+# --- Packaging (optional, only needed to build the .exe) ---
+pyinstaller>=6.6
