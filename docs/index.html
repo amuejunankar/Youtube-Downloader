@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YouTube Downloader for Windows</title>
+<meta name="description" content="Free, open-source YouTube downloader for Windows. Download the installer or the portable build.">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%232563eb'/%3E%3Cpath d='M25 20l20 12-20 12z' fill='white'/%3E%3C/svg%3E">
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="./">
+    <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="url(#g)"/><path d="M25 20l20 12-20 12z" fill="#fff"/><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2563eb"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs></svg>
+    <span>YouTube Downloader</span>
+  </a>
+  <nav>
+    <a id="repo-link" href="#" target="_blank" rel="noopener">Source code</a>
+    <a href="#download">Download</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero">
+    <span class="badge" id="version-badge">latest release</span>
+    <h1>Download YouTube videos<br><span class="grad">on Windows</span></h1>
+    <p class="lede">A clean, open-source desktop app. Choose a quality, merge video and audio, grab whole playlists, or extract MP3. No ads, no account, no command line.</p>
+    <div class="cta">
+      <a class="btn btn-primary" data-asset="YouTubeDownloader-Installer.exe" href="#">
+        <span>Download installer</span>
+        <small id="size-installer">Windows 64-bit</small>
+      </a>
+      <a class="btn btn-ghost" data-asset="YouTubeDownloader_Portable.exe" href="#">
+        <span>Portable version</span>
+        <small id="size-portable">no install needed</small>
+      </a>
+    </div>
+    <p class="hint">Windows 10 / 11 &middot; 64-bit &middot; FFmpeg bundled &middot; free &amp; open source</p>
+  </section>
+
+  <section id="download" class="downloads">
+    <h2>Choose your build</h2>
+    <div class="grid">
+      <article class="card">
+        <h3>Installer</h3>
+        <p>Recommended. Adds Start Menu and desktop shortcuts and registers an uninstaller.</p>
+        <ul>
+          <li>Installs to Program Files</li>
+          <li>Clean uninstall</li>
+          <li id="meta-installer">&nbsp;</li>
+        </ul>
+        <a class="btn btn-primary full" data-asset="YouTubeDownloader-Installer.exe" href="#">Download installer</a>
+      </article>
+      <article class="card">
+        <h3>Portable</h3>
+        <p>A single <code>.exe</code>. Run it from anywhere — a USB stick, a folder, wherever.</p>
+        <ul>
+          <li>No installation</li>
+          <li>Nothing written to Program Files</li>
+          <li id="meta-portable">&nbsp;</li>
+        </ul>
+        <a class="btn btn-ghost full" data-asset="YouTubeDownloader_Portable.exe" href="#">Download portable</a>
+      </article>
+    </div>
+    <p class="note" id="release-note">Downloads come from the latest GitHub Release.</p>
+  </section>
+
+  <section class="features">
+    <h2>What it does</h2>
+    <div class="grid three">
+      <article class="card">
+        <h3>Any quality</h3>
+        <p>Video from 360p up to 4K. Pick a preset or choose an exact format from the list.</p>
+      </article>
+      <article class="card">
+        <h3>Playlists &amp; batches</h3>
+        <p>Analyze a playlist, tick the videos you want, and download them all with progress for each item.</p>
+      </article>
+      <article class="card">
+        <h3>Audio only</h3>
+        <p>Extract MP3 or other audio formats, with metadata and thumbnails embedded.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="steps">
+    <h2>Get started in three steps</h2>
+    <ol>
+      <li><strong>Download</strong> the installer or the portable exe above.</li>
+      <li><strong>Open the app</strong> and paste a YouTube link.</li>
+      <li><strong>Pick a quality</strong> and press Download. Files land in your Downloads folder.</li>
+    </ol>
+  </section>
+
+  <section class="faq">
+    <h2>Questions</h2>
+    <details>
+      <summary>Windows says the app is from an unknown publisher.</summary>
+      <p>The build is not code-signed, so SmartScreen may warn you. Click <strong>More info</strong>, then <strong>Run anyway</strong>. You can review the full source code in the repository.</p>
+    </details>
+    <details>
+      <summary>Do I need to install Python or FFmpeg?</summary>
+      <p>No. FFmpeg is bundled inside both builds, so merging video and audio works out of the box.</p>
+    </details>
+    <details>
+      <summary>Is it really free?</summary>
+      <p>Yes. The app is open source and free to use. There are no ads, accounts, or paid tiers.</p>
+    </details>
+    <details>
+      <summary>Is downloading videos allowed?</summary>
+      <p>Only download content you own or are authorised to download, and follow the terms of the site you use. This tool does not bypass DRM or paid content.</p>
+    </details>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <p><a id="repo-link-2" href="#" target="_blank" rel="noopener">View source on GitHub</a></p>
+  <p class="small">&copy; <span id="year"></span> YouTube Downloader &middot; Free and open source</p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
