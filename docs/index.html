@@ -1,123 +1,342 @@
-<!doctype html>
-<html lang="en">
+﻿<!doctype html>
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>YouTube Downloader for Windows</title>
-<meta name="description" content="Free, open-source YouTube downloader for Windows. Download the installer or the portable build.">
+<title>YouTube Downloader â€” Free video &amp; audio downloader for Windows and Android</title>
+<meta name="description" content="A fast, open-source YouTube downloader for Windows and Android. Save video up to 4K, extract MP3, and grab playlists. No ads, no account, no command line.">
+<link rel="canonical" href="https://amuejunankar.github.io/Youtube-Downloader/">
+<meta name="theme-color" content="#070b14">
+<meta property="og:type" content="website">
+<meta property="og:title" content="YouTube Downloader â€” Windows &amp; Android">
+<meta property="og:description" content="Open-source YouTube downloader. 4K video, MP3 audio, playlists. Free for Windows and Android.">
+<meta property="og:url" content="https://amuejunankar.github.io/Youtube-Downloader/">
+<meta property="og:image" content="https://amuejunankar.github.io/Youtube-Downloader/img/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="YouTube Downloader â€” Windows &amp; Android">
+<meta name="twitter:description" content="Open-source YouTube downloader. 4K video, MP3 audio, playlists. Free for Windows and Android.">
+<meta name="twitter:image" content="https://amuejunankar.github.io/Youtube-Downloader/img/og.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop stop-color='%234f8cff'/%3E%3Cstop offset='1' stop-color='%23a855f7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Cpath d='M25 20l20 12-20 12z' fill='white'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%232563eb'/%3E%3Cpath d='M25 20l20 12-20 12z' fill='white'/%3E%3C/svg%3E">
+<noscript><style>.reveal{opacity:1;transform:none}</style></noscript>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "YouTube Downloader",
+  "applicationCategory": "MultimediaApplication",
+  "operatingSystem": "Windows 10, Windows 11, Android 7.0+",
+  "softwareVersion": "1.0.0",
+  "description": "Open-source YouTube downloader for Windows and Android with 4K video, MP3 audio, and playlist support.",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "downloadUrl": "https://github.com/amuejunankar/Youtube-Downloader/releases/tag/1.0.0"
+}
+</script>
 </head>
 <body>
-<header class="site-header">
-  <a class="brand" href="./">
-    <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="url(#g)"/><path d="M25 20l20 12-20 12z" fill="#fff"/><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2563eb"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs></svg>
-    <span>YouTube Downloader</span>
-  </a>
-  <nav>
-    <a id="repo-link" href="#" target="_blank" rel="noopener">Source code</a>
-    <a href="#download">Download</a>
-  </nav>
+<a class="skip" href="#main">Skip to content</a>
+
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></symbol>
+  <symbol id="i-film" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/></symbol>
+  <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V6l12-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z"/><path d="M9 12l2 2 4-4"/></symbol>
+  <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/></symbol>
+  <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5-11-6.5Z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></symbol>
+  <symbol id="i-github" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.9 10.9c.6.1.8-.2.8-.6v-2.1c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.2 1.2a11 11 0 0 1 5.8 0c2.2-1.5 3.2-1.2 3.2-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.3c0 .4.2.7.8.6A11.5 11.5 0 0 0 23.5 12A11.5 11.5 0 0 0 12 .5Z"/></symbol>
+  <symbol id="i-windows" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M3 5.6 10.6 4.4v6.9H3V5.6Zm8.6-1.3L21 3v8.3h-9.4V4.3ZM3 12.7h7.6v6.9L3 18.4v-5.7Zm8.6 0H21V21l-9.4-1.3v-7Z"/></symbol>
+  <symbol id="i-android" viewBox="0 0 24 24"><path d="M6 9.5h12v7.5a3.5 3.5 0 0 1-3.5 3.5h-5A3.5 3.5 0 0 1 6 17V9.5Z"/><path d="M8.5 9.5V8a3.5 3.5 0 0 1 7 0v1.5M7 4l1.6 2.1M17 4l-1.6 2.1M4.5 10.5v5M19.5 10.5v5M10 13h.01M14 13h.01"/></symbol>
+</svg>
+
+<div class="bg" aria-hidden="true">
+  <span class="orb orb-a"></span>
+  <span class="orb orb-b"></span>
+  <span class="orb orb-c"></span>
+  <span class="grid"></span>
+</div>
+
+<header class="header" id="header">
+  <div class="wrap header-inner">
+    <a class="brand" href="./" aria-label="YouTube Downloader home">
+      <span class="logo"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-play"/></svg></span>
+      <span class="brand-name">YouTube<em>Downloader</em></span>
+    </a>
+    <nav class="nav" aria-label="Primary">
+      <a href="#download">Download</a>
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="header-actions">
+      <a class="icon-btn" id="repo-link" href="https://github.com/amuejunankar/Youtube-Downloader" target="_blank" rel="noopener" aria-label="View source on GitHub">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-github"/></svg>
+      </a>
+      <button class="icon-btn" id="theme-toggle" type="button" aria-label="Switch colour theme">
+        <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-moon"/></svg>
+        <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sun"/></svg>
+      </button>
+    </div>
+  </div>
 </header>
 
-<main>
-  <section class="hero">
-    <span class="badge" id="version-badge">latest release</span>
-    <h1>Download YouTube videos<br><span class="grad">on Windows</span></h1>
-    <p class="lede">A clean, open-source desktop app. Choose a quality, merge video and audio, grab whole playlists, or extract MP3. No ads, no account, no command line.</p>
-    <div class="cta">
-      <a class="btn btn-primary" data-asset="YouTubeDownloader-Installer.exe" href="#">
-        <span>Download installer</span>
-        <small id="size-installer">Windows 64-bit</small>
-      </a>
-      <a class="btn btn-ghost" data-asset="YouTubeDownloader_Portable.exe" href="#">
-        <span>Portable version</span>
-        <small id="size-portable">no install needed</small>
-      </a>
+<main id="main">
+  <section class="hero wrap">
+    <div class="hero-copy">
+      <span class="pill reveal"><span class="pulse"></span> v<span id="version">1.0.0</span> &middot; Windows &amp; Android</span>
+      <h1 class="reveal">Save YouTube videos<br><span class="grad">the way you want.</span></h1>
+      <p class="lede reveal">A fast, free, open-source downloader for Windows and Android. Pick a quality, merge video and audio, extract MP3, or grab a whole playlist â€” no ads, no account, no command line.</p>
+      <div class="hero-cta reveal">
+        <a class="btn btn-primary" data-asset="YouTubeDownloader-Installer.exe" href="https://github.com/amuejunankar/Youtube-Downloader/releases/download/1.0.0/YouTubeDownloader-Installer.exe">
+          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-windows"/></svg>
+          <span class="btn-label">Windows installer<small data-size-for="YouTubeDownloader-Installer.exe">Windows 10 / 11</small></span>
+        </a>
+        <a class="btn btn-glass" data-asset="YouTubeDownloader-Android-1.0.0.apk" href="https://github.com/amuejunankar/Youtube-Downloader/releases/download/1.0.0/YouTubeDownloader-Android-1.0.0.apk">
+          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-android"/></svg>
+          <span class="btn-label">Android APK<small data-size-for="YouTubeDownloader-Android-1.0.0.apk">Android 7.0+</small></span>
+        </a>
+      </div>
+      <ul class="checklist reveal">
+        <li><svg class="tick" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg>No ads or accounts</li>
+        <li><svg class="tick" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg>Up to 4K</li>
+        <li><svg class="tick" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg>MP3 extraction</li>
+        <li><svg class="tick" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg>Playlist support</li>
+      </ul>
     </div>
-    <p class="hint">Windows 10 / 11 &middot; 64-bit &middot; FFmpeg bundled &middot; free &amp; open source</p>
+
+    <div class="hero-visual reveal">
+      <span class="halo" aria-hidden="true"></span>
+      <div class="phone">
+        <span class="notch" aria-hidden="true"><i></i></span>
+        <img src="img/android.png" alt="YouTube Downloader Android app showing a selected video and download options" width="420" height="933" fetchpriority="high">
+      </div>
+      <span class="chip chip-a"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-film"/></svg>1080p &amp; 4K</span>
+      <span class="chip chip-b"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-music"/></svg>MP3 audio</span>
+      <span class="chip chip-c"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-list"/></svg>Playlists</span>
+    </div>
   </section>
 
-  <section id="download" class="downloads">
-    <h2>Choose your build</h2>
-    <div class="grid">
-      <article class="card">
-        <h3>Installer</h3>
-        <p>Recommended. Adds Start Menu and desktop shortcuts and registers an uninstaller.</p>
-        <ul>
-          <li>Installs to Program Files</li>
-          <li>Clean uninstall</li>
-          <li id="meta-installer">&nbsp;</li>
-        </ul>
-        <a class="btn btn-primary full" data-asset="YouTubeDownloader-Installer.exe" href="#">Download installer</a>
-      </article>
-      <article class="card">
-        <h3>Portable</h3>
-        <p>A single <code>.exe</code>. Run it from anywhere — a USB stick, a folder, wherever.</p>
-        <ul>
-          <li>No installation</li>
-          <li>Nothing written to Program Files</li>
-          <li id="meta-portable">&nbsp;</li>
-        </ul>
-        <a class="btn btn-ghost full" data-asset="YouTubeDownloader_Portable.exe" href="#">Download portable</a>
-      </article>
-    </div>
-    <p class="note" id="release-note">Downloads come from the latest GitHub Release.</p>
+  <section class="wrap">
+    <ul class="strip reveal">
+      <li><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"/></svg><span><strong>Open source</strong>Review every line on GitHub</span></li>
+      <li><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-zap"/></svg><span><strong>Batteries included</strong>FFmpeg and yt-dlp bundled</span></li>
+      <li><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-music"/></svg><span><strong>Audio ready</strong>MP3 with metadata</span></li>
+      <li><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-list"/></svg><span><strong>Batch friendly</strong>Whole playlists at once</span></li>
+    </ul>
   </section>
 
-  <section class="features">
-    <h2>What it does</h2>
-    <div class="grid three">
-      <article class="card">
-        <h3>Any quality</h3>
-        <p>Video from 360p up to 4K. Pick a preset or choose an exact format from the list.</p>
+  <section id="download" class="section wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">Downloads</span>
+      <h2>Pick your platform</h2>
+      <p>Both builds are free, open source, and include everything they need to run.</p>
+    </div>
+
+    <div class="platform-grid">
+      <article class="platform-card reveal">
+        <div class="platform-top">
+          <span class="plat-icon win"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-windows"/></svg></span>
+          <div>
+            <h3>Windows</h3>
+            <p class="plat-meta">Windows 10 / 11 &middot; 64-bit</p>
+          </div>
+        </div>
+        <p class="plat-copy">A native desktop app with a live format list, per-item playlist progress, and downloads that land in your Downloads folder.</p>
+        <div class="dl-row">
+          <a class="btn btn-primary" data-asset="YouTubeDownloader-Installer.exe" href="https://github.com/amuejunankar/Youtube-Downloader/releases/download/1.0.0/YouTubeDownloader-Installer.exe">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-download"/></svg>
+            <span class="btn-label">Installer<small data-size-for="YouTubeDownloader-Installer.exe">recommended</small></span>
+          </a>
+          <a class="btn btn-glass" data-asset="YouTubeDownloader_Portable.exe" href="https://github.com/amuejunankar/Youtube-Downloader/releases/download/1.0.0/YouTubeDownloader_Portable.exe">
+            <span class="btn-label">Portable<small data-size-for="YouTubeDownloader_Portable.exe">no install</small></span>
+          </a>
+        </div>
+        <p class="fine">Not code-signed yet, so SmartScreen may ask you to confirm. Choose <strong>More info &rarr; Run anyway</strong>.</p>
       </article>
-      <article class="card">
+
+      <article class="platform-card reveal">
+        <div class="platform-top">
+          <span class="plat-icon android"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-android"/></svg></span>
+          <div>
+            <h3>Android</h3>
+            <p class="plat-meta">Android 7.0+ &middot; arm64</p>
+          </div>
+        </div>
+        <p class="plat-copy">A Material 3 app built for one-handed use. Paste a link or share one from YouTube, choose a quality, and download in the background.</p>
+        <div class="dl-row">
+          <a class="btn btn-primary" data-asset="YouTubeDownloader-Android-1.0.0.apk" href="https://github.com/amuejunankar/Youtube-Downloader/releases/download/1.0.0/YouTubeDownloader-Android-1.0.0.apk">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-download"/></svg>
+            <span class="btn-label">Download APK<small data-size-for="YouTubeDownloader-Android-1.0.0.apk">free &middot; direct</small></span>
+          </a>
+        </div>
+        <p class="fine">Sideloaded app: allow <strong>Install unknown apps</strong> for your browser when prompted. Saves to Movies or Music &rarr; YouTube Downloader.</p>
+      </article>
+    </div>
+    <p class="note reveal">Downloads are served from the latest GitHub Release. Binaries are scanned by GitHub but not code-signed.</p>
+  </section>
+
+  <section id="features" class="section wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">Features</span>
+      <h2>Everything you need, nothing you don't</h2>
+      <p>Simple on the surface, flexible underneath.</p>
+    </div>
+    <div class="feature-grid">
+      <article class="feature reveal">
+        <span class="feat-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-film"/></svg></span>
+        <h3>Quality on your terms</h3>
+        <p>From 360p to 4K. Pick a preset or inspect the exact formats and codecs before downloading.</p>
+      </article>
+      <article class="feature reveal">
+        <span class="feat-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-music"/></svg></span>
+        <h3>Audio extraction</h3>
+        <p>Pull the soundtrack as MP3 with cover art and metadata, ready for any music player.</p>
+      </article>
+      <article class="feature reveal">
+        <span class="feat-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-list"/></svg></span>
         <h3>Playlists &amp; batches</h3>
-        <p>Analyze a playlist, tick the videos you want, and download them all with progress for each item.</p>
+        <p>Download a full playlist with numbered filenames and independent progress for every item.</p>
       </article>
-      <article class="card">
-        <h3>Audio only</h3>
-        <p>Extract MP3 or other audio formats, with metadata and thumbnails embedded.</p>
+      <article class="feature reveal">
+        <span class="feat-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-zap"/></svg></span>
+        <h3>No setup</h3>
+        <p>FFmpeg and the download engine ship inside the app. No Python, no PATH edits, no dependencies.</p>
+      </article>
+      <article class="feature reveal">
+        <span class="feat-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"/></svg></span>
+        <h3>Private by design</h3>
+        <p>No accounts, ads, analytics, or telemetry. The app only talks to the sites you ask it to download from.</p>
+      </article>
+      <article class="feature reveal">
+        <span class="feat-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-phone"/></svg></span>
+        <h3>Made for each screen</h3>
+        <p>A responsive desktop window and a Material 3 Android app, sharing the same open-source engine.</p>
       </article>
     </div>
   </section>
 
-  <section class="steps">
-    <h2>Get started in three steps</h2>
-    <ol>
-      <li><strong>Download</strong> the installer or the portable exe above.</li>
-      <li><strong>Open the app</strong> and paste a YouTube link.</li>
-      <li><strong>Pick a quality</strong> and press Download. Files land in your Downloads folder.</li>
+  <section id="how" class="section wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">How it works</span>
+      <h2>Three steps, then done</h2>
+    </div>
+    <ol class="steps">
+      <li class="step reveal">
+        <span class="step-num">01</span>
+        <h3>Install the app</h3>
+        <p>Grab the Windows installer or the Android APK above.</p>
+      </li>
+      <li class="step reveal">
+        <span class="step-num">02</span>
+        <h3>Paste a link</h3>
+        <p>Drop in a video or playlist URL, or share it straight from YouTube.</p>
+      </li>
+      <li class="step reveal">
+        <span class="step-num">03</span>
+        <h3>Download</h3>
+        <p>Choose a quality or audio-only, then let it run in the background.</p>
+      </li>
     </ol>
   </section>
 
-  <section class="faq">
-    <h2>Questions</h2>
-    <details>
-      <summary>Windows says the app is from an unknown publisher.</summary>
-      <p>The build is not code-signed, so SmartScreen may warn you. Click <strong>More info</strong>, then <strong>Run anyway</strong>. You can review the full source code in the repository.</p>
-    </details>
-    <details>
-      <summary>Do I need to install Python or FFmpeg?</summary>
-      <p>No. FFmpeg is bundled inside both builds, so merging video and audio works out of the box.</p>
-    </details>
-    <details>
-      <summary>Is it really free?</summary>
-      <p>Yes. The app is open source and free to use. There are no ads, accounts, or paid tiers.</p>
-    </details>
-    <details>
-      <summary>Is downloading videos allowed?</summary>
-      <p>Only download content you own or are authorised to download, and follow the terms of the site you use. This tool does not bypass DRM or paid content.</p>
-    </details>
+  <section id="faq" class="section wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">FAQ</span>
+      <h2>Good to know</h2>
+    </div>
+    <div class="faq reveal">
+      <details>
+        <summary>Is it really free?</summary>
+        <p>Yes. Both apps are free and open source, with no ads, accounts, trials, or paid tiers. You can read and build the source yourself.</p>
+      </details>
+      <details>
+        <summary>Windows shows "unknown publisher". Is that safe?</summary>
+        <p>The builds are not signed with a commercial code-signing certificate, so SmartScreen warns about a new app. Click <strong>More info</strong>, then <strong>Run anyway</strong>. The full source and build scripts are on GitHub.</p>
+      </details>
+      <details>
+        <summary>How do I install the Android APK?</summary>
+        <p>Download the APK, open it, and allow <strong>Install unknown apps</strong> for the app you downloaded it with (Chrome, Files, etc.). The app is signed and targets Android 7.0 and newer on 64-bit devices.</p>
+      </details>
+      <details>
+        <summary>Do I need Python or FFmpeg?</summary>
+        <p>No. FFmpeg and the download engine are bundled in both builds, so merging video and audio works immediately after install.</p>
+      </details>
+      <details>
+        <summary>Where do downloads go?</summary>
+        <p>On Windows they go to your Downloads folder. On Android they appear in <strong>Movies/YouTube Downloader</strong> for video and <strong>Music/YouTube Downloader</strong> for audio, indexed by the system gallery and music apps.</p>
+      </details>
+      <details>
+        <summary>Why are some Android downloads MKV?</summary>
+        <p>YouTube's higher resolutions often use VP9 or AV1 video with Opus audio, which cannot be merged into MP4. The app uses MKV in those cases, and players such as VLC or MX Player handle it natively.</p>
+      </details>
+      <details>
+        <summary>Is downloading allowed?</summary>
+        <p>Only download content you own or are authorised to download, and follow the terms of the site you use. The app does not bypass DRM, paywalls, or private content.</p>
+      </details>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <div class="cta-band reveal">
+      <div>
+        <h2>Ready to save your first video?</h2>
+        <p>Free for Windows and Android. Open source, forever.</p>
+      </div>
+      <div class="cta-actions">
+        <a class="btn btn-primary" data-asset="YouTubeDownloader-Installer.exe" href="https://github.com/amuejunankar/Youtube-Downloader/releases/download/1.0.0/YouTubeDownloader-Installer.exe">
+          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-windows"/></svg>
+          <span class="btn-label">Get it for Windows<small data-size-for="YouTubeDownloader-Installer.exe">installer</small></span>
+        </a>
+        <a class="btn btn-glass" data-asset="YouTubeDownloader-Android-1.0.0.apk" href="https://github.com/amuejunankar/Youtube-Downloader/releases/download/1.0.0/YouTubeDownloader-Android-1.0.0.apk">
+          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-android"/></svg>
+          <span class="btn-label">Get it for Android<small data-size-for="YouTubeDownloader-Android-1.0.0.apk">APK</small></span>
+        </a>
+      </div>
+    </div>
   </section>
 </main>
 
-<footer class="site-footer">
-  <p><a id="repo-link-2" href="#" target="_blank" rel="noopener">View source on GitHub</a></p>
-  <p class="small">&copy; <span id="year"></span> YouTube Downloader &middot; Free and open source</p>
+<footer class="footer">
+  <div class="wrap footer-grid">
+    <div class="footer-brand">
+      <a class="brand" href="./" aria-label="YouTube Downloader home">
+        <span class="logo"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-play"/></svg></span>
+        <span class="brand-name">YouTube<em>Downloader</em></span>
+      </a>
+      <p>A clean, open-source downloader for Windows and Android.</p>
+    </div>
+    <div class="footer-links">
+      <h4>Project</h4>
+      <a id="repo-link-2" href="https://github.com/amuejunankar/Youtube-Downloader" target="_blank" rel="noopener">Source code</a>
+      <a href="https://github.com/amuejunankar/Youtube-Downloader/releases" target="_blank" rel="noopener">All releases</a>
+      <a href="https://github.com/amuejunankar/Youtube-Downloader/issues" target="_blank" rel="noopener">Report an issue</a>
+    </div>
+    <div class="footer-links">
+      <h4>Download</h4>
+      <a data-asset="YouTubeDownloader-Installer.exe" href="https://github.com/amuejunankar/Youtube-Downloader/releases/download/1.0.0/YouTubeDownloader-Installer.exe">Windows installer</a>
+      <a data-asset="YouTubeDownloader_Portable.exe" href="https://github.com/amuejunankar/Youtube-Downloader/releases/download/1.0.0/YouTubeDownloader_Portable.exe">Windows portable</a>
+      <a data-asset="YouTubeDownloader-Android-1.0.0.apk" href="https://github.com/amuejunankar/Youtube-Downloader/releases/download/1.0.0/YouTubeDownloader-Android-1.0.0.apk">Android APK</a>
+    </div>
+  </div>
+  <div class="wrap footer-bottom">
+    <p>&copy; <span id="year"></span> YouTube Downloader &middot; Free &amp; open source</p>
+    <p class="small">Only download content you own or are authorised to download.</p>
+  </div>
 </footer>
 
-<script src="app.js"></script>
+<script src="app.js" defer></script>
 </body>
 </html>
+
+

@@ -1,29 +1,31 @@
 (() => {
+  "use strict";
+
   const OWNER = "amuejunankar";
   const REPO = "Youtube-Downloader";
-  const RELEASE_TAG = "1.0.0";
+  const TAG = "1.0.0";
 
   const repoUrl = `https://github.com/${OWNER}/${REPO}`;
-  const releaseBase = `${repoUrl}/releases/download/${RELEASE_TAG}`;
+  const releaseBase = `${repoUrl}/releases/download/${TAG}`;
 
-  const ASSET_URLS = {
+  const ASSETS = {
     "YouTubeDownloader-Installer.exe": `${releaseBase}/YouTubeDownloader-Installer.exe`,
     "YouTubeDownloader_Portable.exe": `${releaseBase}/YouTubeDownloader_Portable.exe`,
+    "YouTubeDownloader-Android-1.0.0.apk": `${releaseBase}/YouTubeDownloader-Android-1.0.0.apk`,
   };
+
+  /* ---------- Download links ---------- */
 
   document.querySelectorAll("[data-asset]").forEach((link) => {
     const asset = link.getAttribute("data-asset");
-    link.href = ASSET_URLS[asset] || `${repoUrl}/releases`;
+    link.href = ASSETS[asset] || `${repoUrl}/releases`;
     link.setAttribute("rel", "noopener");
   });
 
-  ["repo-link", "repo-link-2"].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.href = repoUrl;
+  const fallbackLabels = new Map();
+  document.querySelectorAll("[data-size-for]").forEach((el) => {
+    fallbackLabels.set(el, el.textContent.trim());
   });
-
-  const year = document.getElementById("year");
-  if (year) year.textContent = String(new Date().getFullYear());
 
   const human = (bytes) => {
     if (!Number.isFinite(bytes) || bytes <= 0) return "";
@@ -34,35 +36,112 @@
       value /= 1024;
       i += 1;
     }
-    return `${value.toFixed(value >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+    const digits = value >= 100 ? 0 : value >= 10 ? 1 : 1;
+    return `${value.toFixed(digits)} ${units[i]}`;
   };
 
-  const setText = (id, text) => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = text;
-  };
+  const versionEl = document.getElementById("version");
+  if (versionEl) versionEl.textContent = TAG;
 
-  fetch(`https://api.github.com/repos/${OWNER}/${REPO}/releases/tags/${RELEASE_TAG}`, {
+  /* ---------- Release metadata ---------- */
+
+  fetch(`https://api.github.com/repos/${OWNER}/${REPO}/releases/tags/${TAG}`, {
     headers: { Accept: "application/vnd.github+json" },
   })
     .then((res) => (res.ok ? res.json() : null))
     .then((release) => {
       if (!release) return;
 
-      const badge = document.getElementById("version-badge");
-      if (badge && release.tag_name) badge.textContent = `v${release.tag_name}`;
+      const tag = String(release.tag_name || TAG).replace(/^v/i, "");
+      if (versionEl) versionEl.textContent = tag;
 
       (release.assets || []).forEach((asset) => {
         const size = human(asset.size);
-        if (asset.name === "YouTubeDownloader-Installer.exe") {
-          setText("size-installer", size ? `${size} · Windows 64-bit` : "Windows 64-bit");
-          setText("meta-installer", size ? `${size} download` : "");
-        }
-        if (asset.name === "YouTubeDownloader_Portable.exe") {
-          setText("size-portable", size ? `${size} · no install needed` : "no install needed");
-          setText("meta-portable", size ? `${size} download` : "");
-        }
+        if (!size) return;
+        document
+          .querySelectorAll(`[data-size-for="${CSS.escape(asset.name)}"]`)
+          .forEach((el) => {
+            const fallback = fallbackLabels.get(el) || "";
+            el.textContent = fallback ? `${size} · ${fallback}` : size;
+          });
       });
     })
-    .catch(() => {});
+    .catch(() => {
+      /* offline or rate-limited: keep the static labels */
+    });
+
+  /* ---------- Theme ---------- */
+
+  const root = document.documentElement;
+  const toggle = document.getElementById("theme-toggle");
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  const media = window.matchMedia("(prefers-color-scheme: light)");
+
+  const applyTheme = (theme, persist) => {
+    root.dataset.theme = theme;
+    if (themeMeta) themeMeta.content = theme === "light" ? "#f4f7ff" : "#070b14";
+    if (toggle) {
+      toggle.setAttribute(
+        "aria-label",
+        theme === "dark" ? "Switch to light theme" : "Switch to dark theme"
+      );
+    }
+    if (persist) {
+      try {
+        localStorage.setItem("ytdl-theme", theme);
+      } catch (e) {
+        /* storage disabled */
+      }
+    }
+  };
+
+  let savedTheme = null;
+  try {
+    savedTheme = localStorage.getItem("ytdl-theme");
+  } catch (e) {
+    /* storage disabled */
+  }
+
+  applyTheme(savedTheme || (media.matches ? "light" : "dark"), false);
+
+  if (toggle) {
+    toggle.addEventListener("click", () => {
+      applyTheme(root.dataset.theme === "dark" ? "light" : "dark", true);
+    });
+  }
+
+  /* ---------- Header state ---------- */
+
+  const header = document.getElementById("header");
+  const onScroll = () => {
+    if (!header) return;
+    header.classList.toggle("scrolled", window.scrollY > 8);
+  };
+  onScroll();
+  window.addEventListener("scroll", onScroll, { passive: true });
+
+  /* ---------- Reveal on scroll ---------- */
+
+  const revealItems = document.querySelectorAll(".reveal");
+
+  if ("IntersectionObserver" in window) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add("in");
+          observer.unobserve(entry.target);
+        });
+      },
+      { threshold: 0.12, rootMargin: "0px 0px -36px 0px" }
+    );
+    revealItems.forEach((el) => observer.observe(el));
+  } else {
+    revealItems.forEach((el) => el.classList.add("in"));
+  }
+
+  /* ---------- Footer year ---------- */
+
+  const year = document.getElementById("year");
+  if (year) year.textContent = String(new Date().getFullYear());
 })();

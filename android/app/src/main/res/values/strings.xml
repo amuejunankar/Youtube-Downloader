@@ -1,0 +1,38 @@
+<resources>
+    <string name="app_name">YouTube Downloader</string>
+    <string name="app_tagline">Download video or audio from YouTube</string>
+
+    <string name="section_link">Video link</string>
+    <string name="section_video">Selected video</string>
+    <string name="section_options">Options</string>
+    <string name="section_download">Download</string>
+
+    <string name="url_hint">Paste a YouTube link</string>
+    <string name="paste">Paste</string>
+    <string name="analyze">Analyze link</string>
+    <string name="quality">Quality</string>
+    <string name="audio_only">Audio only (MP3)</string>
+    <string name="playlist_mode">Download whole playlist</string>
+    <string name="download">Download</string>
+    <string name="cancel">Cancel</string>
+
+    <string name="engine_starting">Preparing downloader…</string>
+    <string name="engine_ready">Ready</string>
+    <string name="idle">Paste a link, then tap Analyze link.</string>
+    <string name="paste_empty">Clipboard is empty</string>
+    <string name="analyzing">Fetching video info…</string>
+    <string name="video_ready">Ready to download</string>
+    <string name="analysis_failed">Could not read that link</string>
+    <string name="downloading">Downloading…</string>
+    <string name="downloaded">Saved to %1$s</string>
+    <string name="cancelled">Cancelled</string>
+    <string name="failed">Download failed</string>
+    <string name="storage_needed">Storage permission is needed to save files</string>
+
+    <string name="notification_channel">Downloads</string>
+    <string name="notification_title">YouTube Downloader</string>
+    <string name="notification_complete">Download complete</string>
+    <string name="notification_failed">Download failed</string>
+
+    <string name="legal_note">Only download content you own or are authorised to download.</string>
+</resources>
