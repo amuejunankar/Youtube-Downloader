@@ -1,0 +1,167 @@
+name: Build and release Windows and Android
+
+# Builds both apps, then publishes every asset to the GitHub release for the
+# current version, so these stable URLs always serve the newest builds:
+#   .../releases/latest/download/YouTubeDownloader-Installer.exe
+#   .../releases/latest/download/YouTubeDownloader_Portable.exe
+#   .../releases/latest/download/YouTubeDownloader-Android.apk
+#
+# Runs on a v* tag push, on a push to main that touches either app, and by hand.
+# The Windows job runs on a Windows runner (PyInstaller + Inno Setup); the
+# Android job builds the signed release APK on Linux. A separate publish job
+# waits for both, so a release never goes out half-built.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "app/**"
+      - "android/**"
+      - "installer/**"
+      - "scripts/**"
+      - "YouTubeDownloader.spec"
+      - "requirements.txt"
+      - ".github/workflows/release.yml"
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Install FFmpeg and Inno Setup
+        run: |
+          choco install ffmpeg innosetup --no-progress -y
+
+      - name: Generate the application icon
+        run: python scripts/make_icon.py
+
+      - name: Build the app folder (FFmpeg bundled)
+        env:
+          YD_BUNDLE_FFMPEG: "1"
+        run: python -m PyInstaller --noconfirm --clean YouTubeDownloader.spec
+
+      - name: Build the portable single-file .exe
+        env:
+          YD_ONEFILE: "1"
+          YD_BUNDLE_FFMPEG: "1"
+        run: >
+          python -m PyInstaller --noconfirm --clean
+          --distpath dist\portable --workpath build\onefile
+          YouTubeDownloader.spec
+
+      - name: Read the app version
+        id: version
+        run: |
+          $v = python -c "import app; print(app.__version__)"
+          "value=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Compile the installer
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+              /DAppVersion=${{ steps.version.outputs.value }} `
+              installer\YouTubeDownloader.iss
+
+      - name: Collect release assets
+        run: |
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          Copy-Item "dist\YouTubeDownloader-Setup-${{ steps.version.outputs.value }}.exe" `
+                    "out\YouTubeDownloader-Installer.exe"
+          Copy-Item "dist\portable\YouTubeDownloader.exe" `
+                    "out\YouTubeDownloader_Portable.exe"
+          Get-ChildItem out | Select-Object Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ steps.version.outputs.value }}
+          path: out/*
+          if-no-files-found: error
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build the signed release APK
+        working-directory: android
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: Collect release assets
+        working-directory: android
+        run: |
+          mkdir -p ../out
+          cp app/build/outputs/apk/release/app-release.apk ../out/YouTubeDownloader-Android.apk
+          ls -l ../out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: out/YouTubeDownloader-Android.apk
+          if-no-files-found: error
+
+  publish:
+    needs: [windows, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          VERSION=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' app/__init__.py)
+          ANDROID_VERSION=$(sed -n 's/.*versionName = "\(.*\)".*/\1/p' android/app/build.gradle.kts)
+          test -n "$VERSION"
+          if [ "$VERSION" != "$ANDROID_VERSION" ]; then
+            echo "Version mismatch: desktop $VERSION, Android $ANDROID_VERSION" >&2
+            exit 1
+          fi
+          TAG="v$VERSION"
+          ls -l out
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            # A branch build has no tag yet. Creating the ref through the API does
+            # not fire another workflow run; tag builds already have theirs.
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f "ref=refs/tags/$TAG" -f "sha=$SHA" >/dev/null 2>&1 || true
+            gh release create "$TAG" \
+              --title "YouTube Downloader $VERSION" \
+              --notes "Windows installer, portable build and Android APK for version $VERSION." \
+              --verify-tag
+          fi
+          gh release upload "$TAG" out/* --clobber

@@ -1,0 +1,23 @@
+<resources>
+    <!-- Brand -->
+    <color name="brand">#8FB4FF</color>
+    <color name="brand_dark">#4F8CFF</color>
+    <color name="brand_accent">#C4A6FF</color>
+    <color name="brand_container">#1B3A75</color>
+    <color name="on_brand_container">#D8E6FF</color>
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+
+    <!-- Surfaces -->
+    <color name="surface">#0A1020</color>
+    <color name="surface_container">#121C31</color>
+    <color name="surface_container_low">#0E1628</color>
+    <color name="surface_container_high">#1A2439</color>
+    <color name="surface_variant">#1E2A42</color>
+
+    <!-- Content -->
+    <color name="on_surface">#E7EDFB</color>
+    <color name="on_surface_variant">#A9B8D4</color>
+    <color name="outline">#6C7B98</color>
+    <color name="outline_variant">#26344E</color>
+</resources>

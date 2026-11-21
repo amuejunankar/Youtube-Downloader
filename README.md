@@ -8,7 +8,7 @@ hand-picked playlist entries — including MP3 audio.
 
 **[Windows installer](https://github.com/amuejunankar/Youtube-Downloader/releases/latest/download/YouTubeDownloader-Installer.exe)** ·
 **[Portable .exe](https://github.com/amuejunankar/Youtube-Downloader/releases/latest/download/YouTubeDownloader_Portable.exe)** ·
-**[Android APK](https://github.com/amuejunankar/Youtube-Downloader/releases/download/1.0.0/YouTubeDownloader-Android-1.0.0.apk)** ·
+**[Android APK](https://github.com/amuejunankar/Youtube-Downloader/releases/latest/download/YouTubeDownloader-Android.apk)** ·
 **[Website](https://amuejunankar.github.io/Youtube-Downloader/)**
 
 > Download only content you own or are authorised to download. This app does not
@@ -80,15 +80,16 @@ pytest tests/test_integration.py -v
 - **Windows, app only:** `scripts\build_exe.bat` produces
   `dist\YouTubeDownloader.exe` (or `dist\YouTubeDownloader\` with the `folder`
   argument).
-- **Windows, without a Windows machine:** push to `main` (or a `v*` tag, or
-  run the "Build Windows app and installer" workflow by hand). GitHub Actions
-  builds the bundle, the portable .exe and the installer, and publishes them
-  to the release tagged `v<app version>` as
-  `YouTubeDownloader-Installer.exe` and `YouTubeDownloader_Portable.exe`,
-  which is what `releases/latest/download/` serves.
+- **Both apps, without the build machines:** push to `main` (or a `v*` tag, or
+  run the "Build and release Windows and Android" workflow by hand). GitHub
+  Actions builds the Windows bundle, the portable .exe, the installer and the
+  signed Android APK, then publishes all of them to the release tagged
+  `v<version>` as `YouTubeDownloader-Installer.exe`,
+  `YouTubeDownloader_Portable.exe` and `YouTubeDownloader-Android.apk`, which
+  is what `releases/latest/download/` serves.
 - **Android:** with JDK 17 and Android SDK 36 installed, run
   `.\gradlew assembleRelease` in `android\`. Signing reads
-  `android\keystore.properties` (not committed).
+  `android\keystore.properties`.
 
 ## Troubleshooting
 
