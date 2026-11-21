@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from .format_service import (
+    QUALITY_AUDIO_MP3,
     build_postprocessors,
     format_selector,
     is_audio_quality,
@@ -57,6 +58,12 @@ STATUS_COMPLETED = "completed"
 STATUS_SKIPPED = "skipped"
 STATUS_FAILED = "failed"
 STATUS_CANCELLED = "cancelled"
+
+# Extensions the downloader can produce (before and after postprocessing).
+_MEDIA_EXTS = (
+    ".mp4", ".mkv", ".webm", ".mov", ".m4v",
+    ".mp3", ".m4a", ".opus", ".ogg", ".wav", ".flac",
+)
 
 
 class DownloadCancelled(Exception):
@@ -252,14 +259,13 @@ class _TrackingYoutubeDL(yt_dlp.YoutubeDL if YTDLP_AVAILABLE else object):  # ty
         except Exception:
             filename = None
         tracker.on_video_start(info_dict, filename)
-        if (
-            tracker.skip_existing
-            and filename
-            and os.path.exists(filename)
-            and not os.path.exists(filename + ".part")
-        ):
-            tracker.on_video_skipped(info_dict, filename)
-            return True
+        if tracker.skip_existing and filename:
+            # The prepared filename still carries the pre-merge extension, so
+            # also look for the merged / converted result on disk.
+            existing = tracker.existing_output(filename)
+            if existing:
+                tracker.on_video_skipped(info_dict, existing)
+                return True
         return super().process_info(info_dict)
 
 
@@ -281,6 +287,7 @@ class DownloadTracker:
         postproc_cb: Optional[Callable[[Dict[str, Any]], None]] = None,
         log_cb: Optional[Callable[[str], None]] = None,
         cancel_check: Optional[Callable[[], bool]] = None,
+        output_dir: Optional[str] = None,
     ):
         self.index = index
         self.title = title_hint
@@ -293,7 +300,9 @@ class DownloadTracker:
         self.cancel_check = cancel_check
 
         self.downloaded = False
+        self.finished = False
         self.skipped = False
+        self.output_dir = output_dir
         self.started_at = time.time()
         self.final_filepath: Optional[str] = None
         self.candidates: List[str] = []
@@ -307,6 +316,7 @@ class DownloadTracker:
     def reset(self) -> None:
         """Reset per-attempt state so the tracker can be reused on retry."""
         self.downloaded = False
+        self.finished = False
         self.skipped = False
         self.final_filepath = None
         self.candidates = []
@@ -319,6 +329,28 @@ class DownloadTracker:
         if filename:
             self.candidates.append(filename)
         self.log(f"Downloading [{self.index if self.index is not None else '-'}]: {self.title}")
+
+    def existing_output(self, filename: str) -> Optional[str]:
+        """Return an already-complete file for this download, or None."""
+        path = Path(filename)
+        if self._is_media(str(path)) and not Path(f"{path}.part").exists():
+            return str(path)
+        if self.quality == QUALITY_AUDIO_MP3:
+            variants = (".mp3",)
+        elif is_audio_quality(self.quality):
+            variants = (".m4a", ".webm", ".opus", ".ogg", ".mp3", ".wav")
+        else:
+            # A merged video is remuxed to mp4 (or mkv when streams differ).
+            variants = (".mp4", ".mkv", ".mov")
+        for ext in variants:
+            candidate = path.with_suffix(ext)
+            try:
+                if candidate.is_file() and candidate.stat().st_size > 0 \
+                        and not Path(f"{candidate}.part").exists():
+                    return str(candidate)
+            except OSError:
+                continue
+        return None
 
     def on_video_skipped(self, info: Dict[str, Any], filename: str) -> None:
         self.skipped = True
@@ -356,6 +388,9 @@ class DownloadTracker:
             if self.progress_cb:
                 self.progress_cb(payload)
         elif status == "finished":
+            # yt-dlp reports ``finished`` when the media stream is complete even
+            # if no ``downloading`` hook fired (e.g. a resumed or tiny file).
+            self.finished = True
             payload = {
                 "index": self.index,
                 "title": self.title,
@@ -389,22 +424,63 @@ class DownloadTracker:
             self.final_filepath = fp
 
     # -- result ------------------------------------------------------------ #
+    @staticmethod
+    def _is_media(path: Optional[str]) -> bool:
+        """True for a non-empty media file that exists on disk."""
+        if not path:
+            return False
+        try:
+            p = Path(path)
+            return p.is_file() and p.suffix.lower() in _MEDIA_EXTS and p.stat().st_size > 0
+        except OSError:
+            return False
+
     def resolve_filepath(self, info: Optional[Dict[str, Any]] = None) -> Optional[str]:
-        if self.final_filepath and os.path.exists(self.final_filepath):
+        """Find the media file produced by this download.
+
+        yt-dlp does not report the final path reliably: merging, audio
+        extraction and template changes all rename the file after download.
+        Prefer the paths yt-dlp reported, then scan the output folder for a
+        media file created during this attempt.
+        """
+        if self._is_media(self.final_filepath):
             return self.final_filepath
         info = info or {}
         for rd in info.get("requested_downloads") or []:
             fp = rd.get("filepath")
-            if fp and os.path.exists(fp):
+            if self._is_media(fp):
                 return fp
-        # Merge may have changed the extension; prefer mp4/mkv results.
-        existing = [c for c in self.candidates if os.path.exists(c)]
-        media = [c for c in existing if Path(c).suffix.lower()
-                 in (".mp4", ".mkv", ".webm", ".mp3", ".m4a", ".opus", ".ogg", ".wav")]
-        pool = media or existing
-        if pool:
-            return max(pool, key=lambda p: os.path.getsize(p))
-        return None
+        for key in ("filepath", "_filename"):
+            fp = info.get(key)
+            if self._is_media(fp):
+                return fp
+        existing = [c for c in self.candidates if self._is_media(c)]
+        if existing:
+            return max(existing, key=lambda p: os.path.getsize(p))
+        return self._scan_output_dir()
+
+    def _scan_output_dir(self) -> Optional[str]:
+        """Last resort: newest non-empty media file written during this attempt."""
+        if not self.output_dir:
+            return None
+        directory = Path(self.output_dir)
+        if not directory.is_dir():
+            return None
+        cutoff = self.started_at - 5.0
+        newest: Optional[Path] = None
+        newest_mtime = 0.0
+        try:
+            for entry in directory.iterdir():
+                if not entry.is_file() or entry.suffix.lower() not in _MEDIA_EXTS:
+                    continue
+                stat = entry.stat()
+                if stat.st_size <= 0 or stat.st_mtime < cutoff:
+                    continue
+                if stat.st_mtime >= newest_mtime:
+                    newest, newest_mtime = entry, stat.st_mtime
+        except OSError:
+            return None
+        return str(newest) if newest else None
 
     def build_result(self, status: str, error: Optional[str] = None,
                      info: Optional[Dict[str, Any]] = None) -> DownloadResult:
@@ -467,6 +543,8 @@ class DownloadService:
             "extract_flat": extract_flat,
             "ignoreerrors": False,
             "nocheckcertificate": False,  # keep TLS verification enabled
+            "windowsfilenames": True,     # keep names valid and short on Windows
+            "trim_file_name": 180,
             "socket_timeout": 30,
             "retries": 3,
             "fragment_retries": 5,
@@ -654,7 +732,7 @@ class DownloadService:
         quality: str,
         skip_existing: bool = True,
         retries: int = 3,
-        concurrent_fragments: int = 4,
+        concurrent_fragments: int = 2,
         embed_metadata: bool = True,
         embed_thumbnail: bool = False,
         index: Optional[int] = None,
@@ -671,31 +749,41 @@ class DownloadService:
                 error=f"yt-dlp is not available: {YTDLP_IMPORT_ERROR}",
             )
 
+        # MP3 conversion is impossible without FFmpeg; fail clearly instead of
+        # silently producing an oddly-named audio file.
+        if quality == QUALITY_AUDIO_MP3 and not self.ffmpeg_available:
+            return DownloadResult(
+                url=url, index=index, title=title_hint, quality=quality,
+                status=STATUS_FAILED,
+                error="MP3 conversion requires FFmpeg, which was not found. "
+                      "Install FFmpeg or choose a different format.",
+            )
+
         tracker = DownloadTracker(
             index=index, title_hint=title_hint, url=url, quality=quality,
             skip_existing=skip_existing, progress_cb=progress_cb,
             postproc_cb=postproc_cb, log_cb=self._log_cb,
             cancel_check=cancel_check,
-        )
-        opts = self._download_options(
-            outtmpl=outtmpl, quality=quality, skip_existing=skip_existing,
-            retries=retries, concurrent_fragments=concurrent_fragments,
-            embed_metadata=embed_metadata, embed_thumbnail=embed_thumbnail,
-            tracker=tracker,
+            output_dir=str(Path(outtmpl).expanduser().parent),
         )
 
+        # Different YouTube player clients succeed or fail independently. Try
+        # the default first, then the clients that most often still work.
+        attempts: List[Optional[List[str]]] = [None, ["android"], ["tv"]]
+        fragments = max(1, int(concurrent_fragments))
         info: Optional[Dict[str, Any]] = None
         last_error: Optional[Exception] = None
-        for attempt, clients in enumerate((None, ["android"])):
-            if attempt:
-                tracker.reset()
-                self._log("Retrying download with the Android client…")
-                opts = self._download_options(
-                    outtmpl=outtmpl, quality=quality, skip_existing=skip_existing,
-                    retries=retries, concurrent_fragments=concurrent_fragments,
-                    embed_metadata=embed_metadata, embed_thumbnail=embed_thumbnail,
-                    tracker=tracker,
-                )
+
+        attempt = 0
+        while attempt < len(attempts):
+            clients = attempts[attempt]
+            opts = self._download_options(
+                outtmpl=outtmpl, quality=quality, skip_existing=skip_existing,
+                retries=retries, concurrent_fragments=fragments,
+                embed_metadata=embed_metadata, embed_thumbnail=embed_thumbnail,
+                tracker=tracker,
+            )
+            if clients:
                 opts.setdefault("extractor_args", {})["youtube"] = {"player_client": clients}
             try:
                 with _TrackingYoutubeDL(opts, tracker) as ydl:
@@ -707,8 +795,29 @@ class DownloadService:
                 return tracker.build_result(STATUS_CANCELLED, str(exc))
             except DownloadError as exc:
                 last_error = exc
-                if clients is None and _needs_client_fallback(exc):
+                can_retry = (
+                    attempt + 1 < len(attempts)
+                    and not _is_permanent_error(exc)
+                    and _needs_client_fallback(exc)
+                )
+                if can_retry:
+                    self._log(
+                        "Download attempt failed ("
+                        + str(exc).splitlines()[0][:120]
+                        + "). Retrying with another YouTube client…"
+                    )
+                    # A stale .part file from the failed attempt can poison the
+                    # next one, so clean it up before retrying.
+                    _remove_partial_files(tracker.candidates)
+                    tracker.reset()
+                    if _needs_lower_concurrency(exc) and fragments > 1:
+                        fragments = 1
+                    attempt += 1
                     continue
+                msg = _friendly_error(exc)
+                self._log(f"Download failed: {msg}")
+                return tracker.build_result(STATUS_FAILED, msg)
+            except OSError as exc:
                 msg = _friendly_error(exc)
                 self._log(f"Download failed: {msg}")
                 return tracker.build_result(STATUS_FAILED, msg)
@@ -724,19 +833,20 @@ class DownloadService:
 
         if tracker.skipped:
             return tracker.build_result(STATUS_SKIPPED, info=info)
-        if not tracker.downloaded:
-            # Nothing was downloaded and it was not flagged as skipped.
-            return tracker.build_result(
-                STATUS_FAILED, "Download produced no media (unknown yt-dlp state).",
-                info=info,
-            )
+
+        # Success is decided by what is actually on disk, not by progress
+        # hooks: yt-dlp can finish a download without emitting "downloading"
+        # (resumed files) and merging/conversion renames the output afterwards.
         result = tracker.build_result(STATUS_COMPLETED, info=info)
-        if result.filepath is None:
+        if result.filepath is None or not result.filesize:
             result.status = STATUS_FAILED
-            result.error = "Download finished but the output file was not found."
-        elif result.filesize == 0:
-            result.status = STATUS_FAILED
-            result.error = "Downloaded file is empty (0 bytes)."
+            if tracker.finished or tracker.downloaded:
+                result.error = (
+                    "The download finished but no output file was found in the "
+                    "destination folder."
+                )
+            else:
+                result.error = "Download produced no media (nothing was written)."
         return result
 
     def download_many(
@@ -784,10 +894,12 @@ class DownloadService:
                 break
 
             index = task.get("index")
+            # The video id keeps same-titled videos from overwriting each other,
+            # and ".120B" caps the byte length so Windows MAX_PATH is respected.
             if number_files and index is not None:
-                template = f"{int(index):03d} - %(title)s.%(ext)s"
+                template = f"{int(index):03d} - %(title).120B [%(id)s].%(ext)s"
             else:
-                template = "%(title)s.%(ext)s"
+                template = "%(title).120B [%(id)s].%(ext)s"
             outtmpl = str(target_dir / template)
 
             if total > 1:
@@ -836,6 +948,24 @@ _CLIENT_FALLBACK_MARKERS = (
     "page needs to be reloaded",
     "unable to extract",
     "sign in to confirm you're not a bot",
+    "http error 403",
+    "http error 429",
+    "too many requests",
+    "fragment",
+    "connection reset",
+)
+
+# Errors that will fail again no matter which player client is used.
+_PERMANENT_ERROR_MARKERS = (
+    "private video",
+    "members-only",
+    "join this channel",
+    "video unavailable",
+    "this video is not available",
+    "this playlist is private",
+    "sign in to confirm your age",
+    "unsupported url",
+    "is not a valid url",
 )
 
 
@@ -843,6 +973,31 @@ def _needs_client_fallback(exc: Exception) -> bool:
     """Whether a different YouTube player client is worth trying."""
     low = str(exc).lower()
     return any(marker in low for marker in _CLIENT_FALLBACK_MARKERS)
+
+
+def _is_permanent_error(exc: Exception) -> bool:
+    """Whether retrying with another client cannot possibly help."""
+    low = str(exc).lower()
+    return any(marker in low for marker in _PERMANENT_ERROR_MARKERS)
+
+
+def _needs_lower_concurrency(exc: Exception) -> bool:
+    """Rate limiting and forbidden responses call for fewer parallel fragments."""
+    low = str(exc).lower()
+    return "http error 403" in low or "http error 429" in low or "too many requests" in low
+
+
+def _remove_partial_files(candidates: List[str]) -> None:
+    """Delete stale ``.part``/``.ytdl`` leftovers from a failed attempt."""
+    for candidate in candidates:
+        path = Path(candidate)
+        try:
+            for name in os.listdir(path.parent):
+                if name.startswith(path.name) and ".part" in name:
+                    (path.parent / name).unlink(missing_ok=True)
+            Path(f"{path}.ytdl").unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _looks_unavailable(title: str, item: Dict[str, Any]) -> bool:

@@ -5,12 +5,18 @@
 ;     scripts\build_exe.bat folder        REM with YD_BUNDLE_FFMPEG=1
 ;     installer\build_installer.bat
 ;
+; build_installer.bat passes the app version from app\__init__.py as
+; /DAppVersion=<version>; the value below is only a fallback for a plain
+; ISCC run.
+;
 ; The installer is per-user by default (no admin needed) and also offers an
 ; all-users install to Program Files. It ships the app together with FFmpeg,
 ; so nothing else has to be installed.
 
 #define AppName "YouTube Downloader"
-#define AppVersion "1.0.0"
+#ifndef AppVersion
+  #define AppVersion "1.1.0"
+#endif
 #define AppPublisher "YouTube Downloader"
 #define AppExeName "YouTubeDownloader.exe"
 #define SourceDir "..\dist\YouTubeDownloader"
@@ -31,6 +37,9 @@ SetupIconFile=..\assets\app.ico
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
+CloseApplications=yes
+RestartApplications=no
+VersionInfoVersion={#AppVersion}
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=lowest

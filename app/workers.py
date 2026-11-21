@@ -103,7 +103,7 @@ class DownloadWorker(QObject):
                 playlist_title=payload.get("playlist_title", ""),
                 skip_existing=payload.get("skip_existing", True),
                 retries=payload.get("retries", 3),
-                concurrent_fragments=payload.get("concurrent_fragments", 4),
+                concurrent_fragments=payload.get("concurrent_fragments", 2),
                 embed_metadata=payload.get("embed_metadata", True),
                 embed_thumbnail=payload.get("embed_thumbnail", False),
                 number_files=payload.get("number_files", False),

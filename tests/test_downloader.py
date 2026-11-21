@@ -230,6 +230,87 @@ def test_download_video_cancelled(tmp_path, monkeypatch):
     assert result.status == STATUS_CANCELLED
 
 
+def test_download_video_succeeds_when_only_finished_hook_fires(tmp_path, monkeypatch):
+    """A real download must not be reported as failed just because no
+    ``downloading`` progress event was emitted (e.g. resumed files)."""
+    out = tmp_path / "resumed.mp4"
+
+    def impl(self, url, download):
+        out.write_bytes(b"x" * 64)
+        self.tracker.progress_hook({
+            "status": "finished", "filename": str(out),
+            "downloaded_bytes": 64, "total_bytes": 64, "info_dict": {"title": "T"},
+        })
+        return {}
+
+    make_fake_ydl(monkeypatch, impl)
+    result = _service().download_video(
+        url="u", outtmpl=_outtmpl(tmp_path), quality="best",
+    )
+    assert result.status == STATUS_COMPLETED
+    assert result.filepath == str(out)
+    assert result.filesize == 64
+
+
+def test_download_video_finds_mp3_after_conversion(tmp_path, monkeypatch):
+    """yt-dlp renames the file during postprocessing; the result must point at
+    the .mp3 that actually landed in the output folder."""
+    mp3 = tmp_path / "Song [abc].mp3"
+
+    def impl(self, url, download):
+        mp3.write_bytes(b"a" * 128)
+        return {"title": "Song"}
+
+    make_fake_ydl(monkeypatch, impl)
+    ffmpeg = FFmpegStatus(ffmpeg="/usr/bin/ffmpeg", ffprobe="/usr/bin/ffprobe")
+    result = DownloadService(ffmpeg_status=ffmpeg).download_video(
+        url="u", outtmpl=_outtmpl(tmp_path), quality="audio_mp3",
+    )
+    assert result.status == STATUS_COMPLETED
+    assert result.filepath == str(mp3)
+    assert result.filesize == 128
+
+
+def test_download_video_mp3_requires_ffmpeg(tmp_path, monkeypatch):
+    make_fake_ydl(monkeypatch, lambda self, url, download: {})
+    result = _service().download_video(
+        url="u", outtmpl=_outtmpl(tmp_path), quality="audio_mp3",
+    )
+    assert result.status == STATUS_FAILED
+    assert "ffmpeg" in (result.error or "").lower()
+
+
+def test_download_video_retries_with_clean_partial(tmp_path, monkeypatch):
+    """A 403 must retry with another client after clearing the stale .part."""
+    out = tmp_path / "video.mp4"
+    part = tmp_path / "video.mp4.part"
+    attempts = {"n": 0}
+
+    def impl(self, url, download):
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            part.write_bytes(b"stale")
+            self.tracker.progress_hook({
+                "status": "downloading", "filename": str(out),
+                "downloaded_bytes": 5, "total_bytes": 100, "info_dict": {},
+            })
+            raise downloader.DownloadError("HTTP Error 403: Forbidden")
+        out.write_bytes(b"x" * 100)
+        self.tracker.progress_hook({
+            "status": "finished", "filename": str(out),
+            "downloaded_bytes": 100, "total_bytes": 100, "info_dict": {},
+        })
+        return {}
+
+    make_fake_ydl(monkeypatch, impl)
+    result = _service().download_video(
+        url="u", outtmpl=_outtmpl(tmp_path), quality="best",
+    )
+    assert attempts["n"] == 2
+    assert not part.exists()
+    assert result.status == STATUS_COMPLETED
+
+
 def test_download_video_no_media_fails(tmp_path, monkeypatch):
     def impl(self, url, download):
         return {"title": "T"}  # no hooks fired -> nothing downloaded
@@ -271,8 +352,8 @@ def test_download_many_numbers_playlist_files(tmp_path, monkeypatch):
                                 quality="best", number_files=True)
     assert len(summary.results) == 2
     assert len(summary.completed) == 2
-    assert calls[0]["outtmpl"].endswith("001 - %(title)s.%(ext)s")
-    assert calls[1]["outtmpl"].endswith("002 - %(title)s.%(ext)s")
+    assert calls[0]["outtmpl"].endswith("001 - %(title).120B [%(id)s].%(ext)s")
+    assert calls[1]["outtmpl"].endswith("002 - %(title).120B [%(id)s].%(ext)s")
 
 
 def test_download_many_single_video_no_numbering(tmp_path, monkeypatch):
@@ -282,7 +363,7 @@ def test_download_many_single_video_no_numbering(tmp_path, monkeypatch):
                         lambda **kw: (calls.append(kw) or _fake_ok_result("u", "T", None, tmp_path)))
     svc.download_many(tasks=[{"url": "u", "title": "T", "index": None}],
                       output_dir=str(tmp_path), quality="best", number_files=False)
-    assert calls[0]["outtmpl"].endswith("%(title)s.%(ext)s")
+    assert calls[0]["outtmpl"].endswith("%(title).120B [%(id)s].%(ext)s")
 
 
 def test_download_many_playlist_folder(tmp_path, monkeypatch):
@@ -363,6 +444,23 @@ def test_progress_hook_finished_sets_full():
     t.progress_hook({"status": "finished", "downloaded_bytes": 100,
                      "total_bytes": 100, "info_dict": {}})
     assert captured[0]["percent"] == 1.0
+
+
+def test_existing_output_detects_merged_file(tmp_path):
+    """Skip detection must find the merged file, not the pre-merge name."""
+    merged = tmp_path / "Song [abc].mp4"
+    merged.write_bytes(b"x" * 10)
+    t = DownloadTracker(index=1, title_hint="Song", url="u", quality="best",
+                        skip_existing=True)
+    assert t.existing_output(str(tmp_path / "Song [abc].webm")) == str(merged)
+
+
+def test_existing_output_detects_converted_mp3(tmp_path):
+    mp3 = tmp_path / "Song [abc].mp3"
+    mp3.write_bytes(b"x" * 10)
+    t = DownloadTracker(index=1, title_hint="Song", url="u", quality="audio_mp3",
+                        skip_existing=True)
+    assert t.existing_output(str(tmp_path / "Song [abc].webm")) == str(mp3)
 
 
 def test_tracker_postprocessor_hook_records_file(tmp_path):

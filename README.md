@@ -6,8 +6,8 @@ A free video and audio downloader for **Windows 10/11** and **Android 7.0+**.
 Paste a link, choose a quality, and download a single video, a full playlist, or
 hand-picked playlist entries — including MP3 audio.
 
-**[Windows installer](https://github.com/amuejunankar/Youtube-Downloader/releases/download/1.0.0/YouTubeDownloader-Installer.exe)** ·
-**[Portable .exe](https://github.com/amuejunankar/Youtube-Downloader/releases/download/1.0.0/YouTubeDownloader_Portable.exe)** ·
+**[Windows installer](https://github.com/amuejunankar/Youtube-Downloader/releases/latest/download/YouTubeDownloader-Installer.exe)** ·
+**[Portable .exe](https://github.com/amuejunankar/Youtube-Downloader/releases/latest/download/YouTubeDownloader_Portable.exe)** ·
 **[Android APK](https://github.com/amuejunankar/Youtube-Downloader/releases/download/1.0.0/YouTubeDownloader-Android-1.0.0.apk)** ·
 **[Website](https://amuejunankar.github.io/Youtube-Downloader/)**
 
@@ -72,9 +72,20 @@ pytest tests/test_integration.py -v
 
 ## Build
 
-- **Windows:** `scripts\build_exe.bat` produces `dist\YouTubeDownloader.exe`.
-  For the installer, build the folder variant with FFmpeg bundled and run
-  `installer\build_installer.bat` (needs Inno Setup 6).
+- **Windows, installer:** `installer\build_installer.bat` (add `portable` to
+  also build the one-file .exe). It builds the folder bundle with FFmpeg when
+  it is missing, reads the version from `app\__init__.py`, and writes
+  `dist\YouTubeDownloader-Setup-<version>.exe`. Needs Inno Setup 6
+  (`winget install JRSoftware.InnoSetup`).
+- **Windows, app only:** `scripts\build_exe.bat` produces
+  `dist\YouTubeDownloader.exe` (or `dist\YouTubeDownloader\` with the `folder`
+  argument).
+- **Windows, without a Windows machine:** push to `main` (or a `v*` tag, or
+  run the "Build Windows app and installer" workflow by hand). GitHub Actions
+  builds the bundle, the portable .exe and the installer, and publishes them
+  to the release tagged `v<app version>` as
+  `YouTubeDownloader-Installer.exe` and `YouTubeDownloader_Portable.exe`,
+  which is what `releases/latest/download/` serves.
 - **Android:** with JDK 17 and Android SDK 36 installed, run
   `.\gradlew assembleRelease` in `android\`. Signing reads
   `android\keystore.properties` (not committed).

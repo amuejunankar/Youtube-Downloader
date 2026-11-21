@@ -3,15 +3,18 @@
 
   const OWNER = "amuejunankar";
   const REPO = "Youtube-Downloader";
-  const TAG = "1.0.0";
+  const TAG = "1.1.0";
+  const ANDROID_TAG = "1.0.0";
 
   const repoUrl = `https://github.com/${OWNER}/${REPO}`;
-  const releaseBase = `${repoUrl}/releases/download/${TAG}`;
+  // Windows builds are rebuilt by the "Build Windows app and installer"
+  // workflow, which publishes them to the newest release, so link to it.
+  const latestBase = `${repoUrl}/releases/latest/download`;
 
   const ASSETS = {
-    "YouTubeDownloader-Installer.exe": `${releaseBase}/YouTubeDownloader-Installer.exe`,
-    "YouTubeDownloader_Portable.exe": `${releaseBase}/YouTubeDownloader_Portable.exe`,
-    "YouTubeDownloader-Android-1.0.0.apk": `${releaseBase}/YouTubeDownloader-Android-1.0.0.apk`,
+    "YouTubeDownloader-Installer.exe": `${latestBase}/YouTubeDownloader-Installer.exe`,
+    "YouTubeDownloader_Portable.exe": `${latestBase}/YouTubeDownloader_Portable.exe`,
+    "YouTubeDownloader-Android-1.0.0.apk": `${repoUrl}/releases/download/${ANDROID_TAG}/YouTubeDownloader-Android-1.0.0.apk`,
   };
 
   /* ---------- Download links ---------- */
@@ -45,7 +48,7 @@
 
   /* ---------- Release metadata ---------- */
 
-  fetch(`https://api.github.com/repos/${OWNER}/${REPO}/releases/tags/${TAG}`, {
+  fetch(`https://api.github.com/repos/${OWNER}/${REPO}/releases/latest`, {
     headers: { Accept: "application/vnd.github+json" },
   })
     .then((res) => (res.ok ? res.json() : null))

@@ -15,6 +15,8 @@ REM  Environment:
 REM    YD_BUNDLE_FFMPEG=0    do NOT embed FFmpeg (smaller, needs FFmpeg
 REM                          installed / on PATH at runtime)
 REM    YD_BUNDLE_FFMPEG=1    embed FFmpeg (default)
+REM    YD_NOPAUSE=1          do not wait for a key press (used by
+REM                          installer\build_installer.bat)
 REM ============================================================
 setlocal EnableExtensions
 cd /d "%~dp0.."
@@ -25,19 +27,19 @@ if not defined YD_BUNDLE_FFMPEG set "YD_BUNDLE_FFMPEG=1"
 
 if not exist ".venv\Scripts\python.exe" (
     echo Virtual environment not found. Run scripts\install.bat first.
-    pause
+    if not defined YD_NOPAUSE pause
     exit /b 1
 )
 set "PY=%CD%\.venv\Scripts\python.exe"
 
 echo [1/4] Ensuring PyInstaller is installed...
 "%PY%" -m pip install --upgrade pyinstaller || (
-    echo Could not install PyInstaller. & pause & exit /b 1
+    echo Could not install PyInstaller. & if not defined YD_NOPAUSE pause & exit /b 1
 )
 
 echo [2/4] Generating application icon...
 "%PY%" scripts\make_icon.py || (
-    echo Icon generation failed. & pause & exit /b 1
+    echo Icon generation failed. & if not defined YD_NOPAUSE pause & exit /b 1
 )
 
 if "%YD_BUNDLE_FFMPEG%"=="1" (
@@ -50,7 +52,7 @@ if /I not "%MODE%"=="onefile" (
     echo [4/4] Building FOLDER build ^(dist\YouTubeDownloader\^)...
     set "YD_ONEFILE="
     "%PY%" -m PyInstaller --noconfirm --clean YouTubeDownloader.spec || (
-        echo Build failed. & pause & exit /b 1
+        echo Build failed. & if not defined YD_NOPAUSE pause & exit /b 1
     )
 )
 
@@ -58,7 +60,7 @@ if /I not "%MODE%"=="folder" (
     echo [4/4] Building SINGLE-FILE build ^(dist\YouTubeDownloader.exe^)...
     set "YD_ONEFILE=1"
     "%PY%" -m PyInstaller --noconfirm --clean YouTubeDownloader.spec || (
-        echo Build failed. & pause & exit /b 1
+        echo Build failed. & if not defined YD_NOPAUSE pause & exit /b 1
     )
     set "YD_ONEFILE="
 )
@@ -72,5 +74,5 @@ echo.
 echo  To build a Setup.exe installer:
 echo     installer\build_installer.bat
 echo ============================================================
-pause
+if not defined YD_NOPAUSE pause
 endlocal

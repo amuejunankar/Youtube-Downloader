@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.venv/
+.qtlibs/
+artifacts/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+logs/
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/keystore.properties

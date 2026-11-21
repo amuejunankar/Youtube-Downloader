@@ -16,11 +16,12 @@ from .utils import default_output_dir
 DEFAULTS: Dict[str, Any] = {
     "output_dir": None,            # resolved lazily to default_output_dir()
     "quality": "best",             # quality choice key
-    "download_mode": "video",      # video | playlist | selected
+    "output_mode": "video",        # video | audio
+    "download_mode": "video",      # legacy key, kept for old settings files
     "make_playlist_folder": True,
     "skip_existing": True,
     "retries": 3,
-    "concurrent_fragments": 4,
+    "concurrent_fragments": 2,     # lower = fewer HTTP 403/429 from YouTube
     "ffmpeg_location": "",
     "embed_thumbnail": False,
     "embed_metadata": True,
