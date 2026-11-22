@@ -48,6 +48,23 @@ class DownloadService : Service() {
             "unsupported url",
         )
 
+        // Local problems (storage, permissions) that no download method fixes.
+        private val LOCAL_MARKERS = listOf(
+            "no space left",
+            "not enough space",
+            "disk full",
+            "disk quota exceeded",
+            "permission denied",
+            "access is denied",
+            "read-only file system",
+            "operation not permitted",
+            "file name too long",
+            "ffmpeg not found",
+            "ffmpeg is not installed",
+            "ffmpeg not installed",
+            "not a valid url",
+        )
+
         private val MEDIA_EXTENSIONS = setOf(
             "mp4", "mkv", "webm", "m4v", "mov", "avi",
             "mp3", "m4a", "opus", "ogg", "aac", "flac", "wav",
@@ -184,8 +201,14 @@ class DownloadService : Service() {
                     } catch (e: YoutubeDL.CanceledException) {
                         throw CancellationException("cancelled")
                     } catch (t: Throwable) {
-                        lastError = friendly(t.message)
-                        if (isPermanent(lastError)) break
+                        val message = friendly(t.message)
+                        lastError = message
+                        if (!shouldTryNextMethod(message)) {
+                            // A local problem (full disk, permissions) or a bad
+                            // URL fails the same way for every method, so stop
+                            // here and report it once instead of three times.
+                            throw IllegalStateException(message)
+                        }
                     }
                 }
 
@@ -284,9 +307,16 @@ class DownloadService : Service() {
         postFinalNotification(getString(R.string.downloaded, where))
     }
 
-    private fun isPermanent(message: String?): Boolean {
+    /**
+     * Only YouTube and network failures are worth another method: the alternate
+     * player clients and the single-file format change how the video is
+     * fetched, not whether the phone can write it.
+     */
+    private fun shouldTryNextMethod(message: String?): Boolean {
         val low = message?.lowercase() ?: return false
-        return PERMANENT_MARKERS.any { low.contains(it) }
+        val permanent = PERMANENT_MARKERS.any { low.contains(it) }
+        val local = LOCAL_MARKERS.any { low.contains(it) }
+        return !permanent && !local
     }
 
     private fun ensureEngineReady() {

@@ -311,6 +311,81 @@ def test_download_video_retries_with_clean_partial(tmp_path, monkeypatch):
     assert result.status == STATUS_COMPLETED
 
 
+def test_download_video_disk_full_fails_without_retrying(tmp_path, monkeypatch):
+    """A full disk is not a YouTube problem: report it once, not three times."""
+    attempts = {"n": 0}
+
+    def impl(self, url, download):
+        attempts["n"] += 1
+        # yt-dlp wraps write failures in "unable to download webpage", which
+        # used to be reported as a connection problem.
+        raise downloader.DownloadError(
+            "ERROR: unable to download webpage: [Errno 28] No space left on device"
+        )
+
+    make_fake_ydl(monkeypatch, impl)
+    result = _service().download_video(
+        url="u", outtmpl=_outtmpl(tmp_path), quality="best",
+    )
+    assert attempts["n"] == 1
+    assert result.status == STATUS_FAILED
+    assert "out of space" in (result.error or "").lower()
+    assert "download methods" not in (result.error or "").lower()
+
+
+def test_download_video_permission_denied_fails_without_retrying(tmp_path, monkeypatch):
+    attempts = {"n": 0}
+
+    def impl(self, url, download):
+        attempts["n"] += 1
+        raise PermissionError(13, "Permission denied", str(tmp_path / "video.mp4"))
+
+    make_fake_ydl(monkeypatch, impl)
+    result = _service().download_video(
+        url="u", outtmpl=_outtmpl(tmp_path), quality="best",
+    )
+    assert attempts["n"] == 1
+    assert result.status == STATUS_FAILED
+    assert "permission denied" in (result.error or "").lower()
+
+
+def test_download_video_bad_url_fails_without_retrying(tmp_path, monkeypatch):
+    attempts = {"n": 0}
+
+    def impl(self, url, download):
+        attempts["n"] += 1
+        raise downloader.DownloadError("ERROR: Unsupported URL: https://example.com")
+
+    make_fake_ydl(monkeypatch, impl)
+    result = _service().download_video(
+        url="u", outtmpl=_outtmpl(tmp_path), quality="best",
+    )
+    assert attempts["n"] == 1
+    assert result.status == STATUS_FAILED
+    assert "not supported" in (result.error or "").lower()
+
+
+def test_download_video_network_error_tries_every_method(tmp_path, monkeypatch):
+    """A network failure is exactly what the other two methods are for."""
+    attempts = {"n": 0}
+
+    def impl(self, url, download):
+        attempts["n"] += 1
+        raise downloader.DownloadError(
+            "ERROR: unable to download webpage: <urlopen error "
+            "[Errno 104] Connection reset by peer>"
+        )
+
+    make_fake_ydl(monkeypatch, impl)
+    result = _service().download_video(
+        url="u", outtmpl=_outtmpl(tmp_path), quality="best",
+    )
+    assert attempts["n"] == 3
+    assert result.status == STATUS_FAILED
+    assert "3 download methods failed" in (result.error or "").lower()
+    assert "network" in (result.error or "").lower()
+
+
 def test_download_video_no_media_fails(tmp_path, monkeypatch):
     def impl(self, url, download):
         return {"title": "T"}  # no hooks fired -> nothing downloaded

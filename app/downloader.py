@@ -45,13 +45,19 @@ from .utils import (
 try:  # yt-dlp is imported lazily-ish so unit tests can monkeypatch it
     import yt_dlp
     from yt_dlp.utils import DownloadError
+    try:  # base class of every yt-dlp error; present in all supported builds
+        from yt_dlp.utils import YoutubeDLError
+    except Exception:  # pragma: no cover - very old yt-dlp
+        YoutubeDLError = DownloadError  # type: ignore
     YTDLP_AVAILABLE = True
     YTDLP_IMPORT_ERROR: Optional[str] = None
+    _YTDLP_ERRORS: tuple = (YoutubeDLError,)
 except Exception as exc:  # pragma: no cover - exercised only without yt-dlp
     yt_dlp = None  # type: ignore
     DownloadError = Exception  # type: ignore
     YTDLP_AVAILABLE = False
     YTDLP_IMPORT_ERROR = str(exc)
+    _YTDLP_ERRORS = ()
 
 
 STATUS_COMPLETED = "completed"
@@ -846,7 +852,13 @@ class DownloadService:
                 last_error = exc
                 message = _friendly_error(exc)
                 failed_methods.append(f"{plan.label}: {message}")
-                if attempt + 1 < len(attempts) and not _is_permanent_error(exc):
+                if not _is_retryable_error(exc):
+                    # A local problem (full disk, read-only folder, missing
+                    # FFmpeg) or a rejected URL would fail identically with
+                    # every method, so report it once with its own message.
+                    self._log(f"Download failed: {message}")
+                    return tracker.build_result(STATUS_FAILED, message)
+                if attempt + 1 < len(attempts):
                     self._log(
                         f"Method {attempt + 1} ({plan.label}) failed: {message}. "
                         f"Trying method {attempt + 2} "
@@ -1026,6 +1038,70 @@ def _is_permanent_error(exc: Exception) -> bool:
     return any(marker in low for marker in _PERMANENT_ERROR_MARKERS)
 
 
+# Failures raised by the local machine or by a URL yt-dlp rejects outright.
+# They are not about YouTube's player, so the alternate clients and the
+# single-file format cannot fix them.
+_LOCAL_ERROR_MARKERS = (
+    "no space left",
+    "not enough space",
+    "disk full",
+    "disk quota exceeded",
+    "permission denied",
+    "access is denied",
+    "read-only file system",
+    "operation not permitted",
+    "file name too long",
+    "ffmpeg not found",
+    "ffmpeg is not installed",
+    "ffmpeg not installed",
+    "not a valid url",
+)
+
+# Transport failures that another method really can bypass.
+_NETWORK_ERROR_MARKERS = (
+    "getaddrinfo",
+    "name or service not known",
+    "temporary failure in name resolution",
+    "connection reset",
+    "connection refused",
+    "connection aborted",
+    "network is unreachable",
+    "timed out",
+    "remote end closed",
+    "incompleteread",
+    "urlerror",
+    "sslerror",
+)
+
+
+def _is_retryable_error(exc: Exception) -> bool:
+    """Whether trying the next download method could still succeed.
+
+    Only YouTube-side and network failures are worth another attempt: the
+    alternate player clients and the progressive format change *how* a video
+    is fetched. A full disk, a read-only folder, a missing FFmpeg or a bad URL
+    fails the same way every time, so it is reported immediately instead of
+    being repeated three times and merged into "all methods failed".
+    """
+    if _is_permanent_error(exc):
+        return False
+    low = str(exc).lower()
+    if any(marker in low for marker in _LOCAL_ERROR_MARKERS):
+        return False
+    if any(marker in low for marker in _NETWORK_ERROR_MARKERS):
+        return True
+    # Connection resets and timeouts are OSError subclasses, so accept them
+    # before rejecting every other OSError as a local failure.
+    if isinstance(exc, (ConnectionError, TimeoutError)):
+        return True
+    if _YTDLP_ERRORS and isinstance(exc, _YTDLP_ERRORS):
+        return True
+    if isinstance(exc, OSError):
+        return False
+    # Anything unknown fails fast rather than triple-reporting itself.
+    return False
+
+
 def _needs_lower_concurrency(exc: Exception) -> bool:
     """Rate limiting and forbidden responses call for fewer parallel fragments."""
     low = str(exc).lower()
@@ -1070,6 +1146,17 @@ def _friendly_error(exc: Exception) -> str:
 
     if "not a valid url" in low or "unsupported url" in low:
         return "The URL is not supported by yt-dlp."
+    # Local, non-network failures first: yt-dlp often wraps them in a
+    # "unable to download webpage" message, which would otherwise be reported
+    # as a connection problem.
+    if "no space left" in low or "disk full" in low or "not enough space" in low \
+            or "disk quota exceeded" in low:
+        return "The destination drive is out of space."
+    if "permission denied" in low or "access is denied" in low \
+            or "read-only file system" in low:
+        return "Permission denied writing to the output folder."
+    if "ffmpeg" in low:
+        return f"FFmpeg problem: {msg}"
     if "private video" in low:
         return "This video is private and cannot be downloaded."
     if "sign in to confirm your age" in low or "age" in low and "restricted" in low:
@@ -1087,11 +1174,5 @@ def _friendly_error(exc: Exception) -> str:
     if "unable to download webpage" in low or "getaddrinfo" in low or "timed out" in low \
             or "network" in low or "connection" in low:
         return "Network error while contacting YouTube. Check your connection."
-    if "ffmpeg" in low:
-        return f"FFmpeg problem: {msg}"
-    if "no space left" in low or "disk full" in low:
-        return "The destination drive is out of space."
-    if "permission denied" in low or "access is denied" in low:
-        return "Permission denied writing to the output folder."
     # Fall back to the raw message, truncated.
     return msg[:400] if msg else exc.__class__.__name__
