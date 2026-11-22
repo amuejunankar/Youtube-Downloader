@@ -37,6 +37,17 @@ class DownloadService : Service() {
         private const val NOTIFICATION_ID = 1
         private const val PROCESS_ID = "active-download"
 
+        // Errors that will fail again with any player client.
+        private val PERMANENT_MARKERS = listOf(
+            "private video",
+            "members-only",
+            "join this channel",
+            "video unavailable",
+            "this video is not available",
+            "sign in to confirm your age",
+            "unsupported url",
+        )
+
         private val MEDIA_EXTENSIONS = setOf(
             "mp4", "mkv", "webm", "m4v", "mov", "avi",
             "mp3", "m4a", "opus", "ogg", "aac", "flac", "wav",
@@ -66,6 +77,13 @@ class DownloadService : Service() {
             }
         }
     }
+
+    /** One way of asking yt-dlp for a download. Tried in order. */
+    private data class Method(
+        val label: String,
+        val clients: List<String>? = null,
+        val progressive: Boolean = false,
+    )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var job: Job? = null
@@ -114,69 +132,64 @@ class DownloadService : Service() {
             try {
                 ensureEngineReady()
 
-                val request = YoutubeDLRequest(url)
-                if (audio) {
-                    request.addOption("-f", "bestaudio/best")
-                    request.addOption("-x")
-                    request.addOption("--audio-format", "mp3")
-                    request.addOption("--audio-quality", "0")
-                } else {
-                    request.addOption("-f", format)
-                    request.addOption("--merge-output-format", "mp4/mkv")
-                }
-                request.addOption(if (playlist) "--yes-playlist" else "--no-playlist")
-                if (playlist) request.addOption("--ignore-errors")
-                request.addOption("--retries", "10")
-                request.addOption("--fragment-retries", "10")
-                request.addOption("--concurrent-fragments", "4")
-                request.addOption("--socket-timeout", "30")
-                request.addOption("--no-mtime")
-                request.addOption("--newline")
-                request.addOption("-P", tempDir.absolutePath)
-                request.addOption("-o", outputTemplate(playlist))
+                // Three methods are tried in order: YouTube changes its player
+                // constantly, so one strategy can stop working at any time.
+                val methods = downloadMethods(audio)
+                var lastError: String? = null
 
-                val callback: (Float, Long, String) -> Unit = { progress, eta, line ->
-                    if (!cancelRequested) {
-                        DownloadBus.status.value = DownloadBus.status.value.copy(
-                            running = true,
-                            progress = progress,
-                            etaSeconds = eta,
-                            message = line.takeIf { it.isNotBlank() } ?: getString(R.string.downloading),
-                        )
-                        notifyProgress(progress)
+                for ((index, method) in methods.withIndex()) {
+                    if (cancelRequested) throw CancellationException("cancelled")
+                    runCatching { tempDir.listFiles()?.forEach { it.deleteRecursively() } }
+                    lastNotified = -1
+                    DownloadBus.status.value = DownloadStatus(
+                        running = true,
+                        message = getString(
+                            R.string.download_method,
+                            index + 1,
+                            methods.size,
+                            method.label,
+                        ),
+                    )
+
+                    try {
+                        val request = buildRequest(url, format, method, audio, playlist, tempDir)
+
+                        val callback: (Float, Long, String) -> Unit = { progress, eta, line ->
+                            if (!cancelRequested) {
+                                DownloadBus.status.value = DownloadBus.status.value.copy(
+                                    running = true,
+                                    progress = progress,
+                                    etaSeconds = eta,
+                                    message = line.takeIf { it.isNotBlank() } ?: getString(R.string.downloading),
+                                )
+                                notifyProgress(progress)
+                            }
+                        }
+
+                        YoutubeDL.getInstance().execute(request, PROCESS_ID, callback)
+                        if (cancelRequested) throw CancellationException("cancelled")
+
+                        val produced = tempDir.walkTopDown()
+                            .filter { it.isFile && it.length() > 0 && it.extension.lowercase() in MEDIA_EXTENSIONS }
+                            .toList()
+
+                        if (produced.isEmpty()) {
+                            throw IllegalStateException("No media file was produced")
+                        }
+
+                        saveProduced(produced, audio)
+                        return@launch
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: YoutubeDL.CanceledException) {
+                        throw CancellationException("cancelled")
+                    } catch (t: Throwable) {
+                        lastError = friendly(t.message)
+                        if (isPermanent(lastError)) break
                     }
                 }
 
-                YoutubeDL.getInstance().execute(request, PROCESS_ID, callback)
-                if (cancelRequested) throw CancellationException("cancelled")
-
-                val produced = tempDir.walkTopDown()
-                    .filter { it.isFile && it.length() > 0 && it.extension.lowercase() in MEDIA_EXTENSIONS }
-                    .toList()
-
-                if (produced.isEmpty()) {
-                    throw IllegalStateException("No media file was produced")
-                }
-
-                val failures = mutableListOf<String>()
-                produced.forEach { file ->
-                    runCatching { MediaStoreSaver.save(applicationContext, file, audio) }
-                        .onFailure { failures += "${file.name}: ${it.message}" }
-                }
-                produced.forEach { runCatching { it.delete() } }
-
-                if (failures.size == produced.size) {
-                    throw IllegalStateException(failures.first())
-                }
-
-                val where = if (audio) "Music/YouTube Downloader" else "Movies/YouTube Downloader"
-                DownloadBus.status.value = DownloadStatus(
-                    finished = true,
-                    progress = 100f,
-                    message = getString(R.string.downloaded, where),
-                    result = where,
-                )
-                postFinalNotification(getString(R.string.downloaded, where))
+                throw IllegalStateException(lastError ?: getString(R.string.failed))
             } catch (e: CancellationException) {
                 if (!cancelRequested) {
                     DownloadBus.status.value = DownloadStatus(error = getString(R.string.cancelled))
@@ -194,6 +207,86 @@ class DownloadService : Service() {
                 stopSelf()
             }
         }
+    }
+
+    private fun downloadMethods(audio: Boolean): List<Method> {
+        val fallbackLabel = if (audio) "audio only, retry" else "single-file format"
+        return listOf(
+            Method("standard"),
+            Method("alternate player clients", clients = listOf("android", "ios", "tv")),
+            Method(fallbackLabel, clients = listOf("android_vr"), progressive = true),
+        )
+    }
+
+    private fun buildRequest(
+        url: String,
+        format: String,
+        method: Method,
+        audio: Boolean,
+        playlist: Boolean,
+        tempDir: File,
+    ): YoutubeDLRequest {
+        val request = YoutubeDLRequest(url)
+        if (audio) {
+            request.addOption("-f", "bestaudio/best")
+            request.addOption("-x")
+            request.addOption("--audio-format", "mp3")
+            request.addOption("--audio-quality", "0")
+        } else {
+            request.addOption("-f", if (method.progressive) progressiveFormat(format) else format)
+            request.addOption("--merge-output-format", "mp4/mkv")
+        }
+        method.clients?.let { clients ->
+            request.addOption("--extractor-args", "youtube:player_client=" + clients.joinToString(","))
+        }
+        request.addOption(if (playlist) "--yes-playlist" else "--no-playlist")
+        if (playlist) request.addOption("--ignore-errors")
+        request.addOption("--retries", "10")
+        request.addOption("--fragment-retries", "10")
+        request.addOption("--concurrent-fragments", "4")
+        request.addOption("--socket-timeout", "30")
+        request.addOption("--no-mtime")
+        request.addOption("--newline")
+        request.addOption("-P", tempDir.absolutePath)
+        request.addOption("-o", outputTemplate(playlist))
+        return request
+    }
+
+    /** Last-resort selector: one file that already contains video and audio. */
+    private fun progressiveFormat(format: String): String {
+        val height = Regex("height<=(\\d+)").find(format)?.groupValues?.get(1)
+        return if (height != null) {
+            "best[height<=$height][ext=mp4]/best[height<=$height]/best"
+        } else {
+            "best[ext=mp4]/best"
+        }
+    }
+
+    private fun saveProduced(produced: List<File>, audio: Boolean) {
+        val failures = mutableListOf<String>()
+        produced.forEach { file ->
+            runCatching { MediaStoreSaver.save(applicationContext, file, audio) }
+                .onFailure { failures += "${file.name}: ${it.message}" }
+        }
+        produced.forEach { runCatching { it.delete() } }
+
+        if (failures.size == produced.size) {
+            throw IllegalStateException(failures.first())
+        }
+
+        val where = if (audio) "Music/YouTube Downloader" else "Movies/YouTube Downloader"
+        DownloadBus.status.value = DownloadStatus(
+            finished = true,
+            progress = 100f,
+            message = getString(R.string.downloaded, where),
+            result = where,
+        )
+        postFinalNotification(getString(R.string.downloaded, where))
+    }
+
+    private fun isPermanent(message: String?): Boolean {
+        val low = message?.lowercase() ?: return false
+        return PERMANENT_MARKERS.any { low.contains(it) }
     }
 
     private fun ensureEngineReady() {

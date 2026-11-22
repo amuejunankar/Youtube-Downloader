@@ -13,6 +13,7 @@
     <color name="surface_container">#FFFFFF</color>
     <color name="surface_container_low">#FFFFFF</color>
     <color name="surface_container_high">#EEF3FE</color>
+    <color name="surface_container_highest">#E4EBF9</color>
     <color name="surface_variant">#E6ECF8</color>
 
     <!-- Content -->

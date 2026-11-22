@@ -27,6 +27,7 @@
     <string name="downloaded">Saved to %1$s</string>
     <string name="cancelled">Cancelled</string>
     <string name="failed">Download failed</string>
+    <string name="download_method">Method %1$d of %2$d: %3$s</string>
     <string name="storage_needed">Storage permission is needed to save files</string>
 
     <string name="notification_channel">Downloads</string>

@@ -13,8 +13,10 @@
         android:layout_height="?attr/actionBarSize"
         android:background="?attr/colorSurface"
         app:subtitle="@string/app_tagline"
+        app:subtitleTextColor="?attr/colorOnSurfaceVariant"
         app:title="@string/app_name"
-        app:titleTextAppearance="?attr/textAppearanceTitleLarge" />
+        app:titleTextAppearance="?attr/textAppearanceTitleLarge"
+        app:titleTextColor="?attr/colorOnSurface" />
 
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"

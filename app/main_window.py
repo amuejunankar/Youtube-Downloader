@@ -27,6 +27,7 @@ from PySide6.QtGui import (
     QColor,
     QIcon,
     QLinearGradient,
+    QPalette,
     QPainter,
     QPen,
     QPixmap,
@@ -94,6 +95,15 @@ QWidget {
 }
 #Root { background: #eef2fa; }
 #Content { background: transparent; }
+
+/* One background everywhere: no OS dark-mode black, no stark white gaps. */
+QMainWindow, QDialog { background: #eef2fa; }
+QMessageBox { background: #f6f9ff; }
+QLabel { background: transparent; }
+QScrollArea { background: transparent; border: 0; }
+QScrollArea > QWidget > QWidget { background: transparent; }
+QAbstractScrollArea::corner { background: transparent; }
+QTableWidget QTableCornerButton::section { background: #f5f8ff; border: 0; }
 #AccentBar {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
                                 stop:0 #4f8cff, stop:0.55 #2563eb, stop:1 #a855f7);
@@ -281,6 +291,51 @@ QToolTip {
 """
 
 
+def build_palette() -> QPalette:
+    """Return the app-wide light palette used by every widget and dialog."""
+    palette = QPalette()
+    window = QColor("#eef2fa")
+    base = QColor("#ffffff")
+    text = QColor("#101a2f")
+    palette.setColor(QPalette.ColorRole.Window, window)
+    palette.setColor(QPalette.ColorRole.WindowText, text)
+    palette.setColor(QPalette.ColorRole.Base, base)
+    palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#f6f9ff"))
+    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#0b1220"))
+    palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#f4f8ff"))
+    palette.setColor(QPalette.ColorRole.Text, text)
+    palette.setColor(QPalette.ColorRole.PlaceholderText, QColor("#93a1b8"))
+    palette.setColor(QPalette.ColorRole.Button, base)
+    palette.setColor(QPalette.ColorRole.ButtonText, QColor("#33415c"))
+    palette.setColor(QPalette.ColorRole.BrightText, QColor("#d92d20"))
+    palette.setColor(QPalette.ColorRole.Link, QColor("#2563eb"))
+    palette.setColor(QPalette.ColorRole.Highlight, QColor("#2563eb"))
+    palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
+    muted = QColor("#9aa8c2")
+    for role in (
+        QPalette.ColorRole.WindowText,
+        QPalette.ColorRole.Text,
+        QPalette.ColorRole.ButtonText,
+        QPalette.ColorRole.PlaceholderText,
+    ):
+        palette.setColor(QPalette.ColorGroup.Disabled, role, muted)
+    palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Button, QColor("#f6f9ff"))
+    palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Base, QColor("#f6f9ff"))
+    return palette
+
+
+def apply_theme(app: QApplication) -> None:
+    """Apply one consistent theme, independent of the OS light/dark setting.
+
+    Without this the widgets that QSS does not cover (menus, message boxes,
+    tooltips, scroll areas) inherit the system palette, which is why parts of
+    the window could look black on a dark-themed Windows install.
+    """
+    app.setStyle("Fusion")
+    app.setPalette(build_palette())
+    app.setStyleSheet(STYLESHEET)
+
+
 class MainWindow(QMainWindow):
     def __init__(self, settings: Optional[Settings] = None, ffmpeg: Optional[FFmpegStatus] = None):
         super().__init__()
@@ -370,6 +425,9 @@ class MainWindow(QMainWindow):
         return pm
 
     def _build_ui(self) -> None:
+        app = QApplication.instance()
+        if isinstance(app, QApplication):
+            apply_theme(app)
         self.setStyleSheet(STYLESHEET)
 
         central = QWidget()

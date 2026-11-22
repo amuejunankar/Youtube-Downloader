@@ -128,9 +128,10 @@ def main(argv: list[str] | None = None) -> int:
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(__version__)
 
-    from app.main_window import MainWindow
+    from app.main_window import MainWindow, apply_theme
     from app.settings import Settings
 
+    apply_theme(app)
     settings = Settings()
     window = MainWindow(settings=settings)
     window.show()

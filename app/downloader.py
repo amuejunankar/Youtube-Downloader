@@ -168,6 +168,15 @@ class DownloadResult:
         }
 
 
+@dataclass(frozen=True)
+class _DownloadAttempt:
+    """One way of asking yt-dlp for a download. Tried in order."""
+
+    label: str
+    clients: Optional[List[str]] = None
+    progressive: bool = False
+
+
 @dataclass
 class DownloadSummary:
     results: List[DownloadResult] = field(default_factory=list)
@@ -565,11 +574,16 @@ class DownloadService:
         embed_metadata: bool,
         embed_thumbnail: bool,
         tracker: DownloadTracker,
+        progressive: bool = False,
     ) -> Dict[str, Any]:
         opts = self.base_options(skip_download=False, noplaylist=True)
         opts.update({
             "outtmpl": outtmpl,
-            "format": format_selector(quality, self.ffmpeg_available),
+            # A progressive attempt only accepts formats that already contain
+            # picture and sound, so nothing has to be merged afterwards.
+            "format": format_selector(
+                quality, self.ffmpeg_available and not progressive
+            ),
             "overwrites": not skip_existing,
             "continuedl": True,          # resume partial downloads
             "retries": max(1, int(retries)),
@@ -585,7 +599,7 @@ class DownloadService:
             "postprocessor_hooks": [tracker.postprocessor_hook],
             "logger": self._ydl_logger(),
         })
-        if self.ffmpeg_available and not is_audio_quality(quality):
+        if self.ffmpeg_available and not progressive and not is_audio_quality(quality):
             opts["merge_output_format"] = "mp4"
         return opts
 
@@ -608,15 +622,27 @@ class DownloadService:
             with yt_dlp.YoutubeDL(opts_factory(None)) as ydl:
                 return ydl.extract_info(url, download=download)
         except DownloadError as exc:
-            if not _needs_client_fallback(exc):
+            if _is_permanent_error(exc):
                 raise
+            last_error: Exception = exc
             self._log(
                 "Default YouTube client failed ("
                 + str(exc).splitlines()[0][:100]
-                + "). Retrying with the Android client…"
+                + "). Trying other player clients…"
             )
-            with yt_dlp.YoutubeDL(opts_factory(["android"])) as ydl:
-                return ydl.extract_info(url, download=download)
+        for clients in (["android"], ["ios"], ["tv"], ["web_embedded"]):
+            try:
+                with yt_dlp.YoutubeDL(opts_factory(clients)) as ydl:
+                    return ydl.extract_info(url, download=download)
+            except DownloadError as exc:
+                last_error = exc
+                if _is_permanent_error(exc):
+                    raise
+                self._log(
+                    f"Client {', '.join(clients)} failed: "
+                    + str(exc).splitlines()[0][:100]
+                )
+        raise last_error
 
     def extract_video_info(self, url: str) -> Dict[str, Any]:
         def factory(clients: Optional[List[str]]) -> Dict[str, Any]:
@@ -767,24 +793,47 @@ class DownloadService:
             output_dir=str(Path(outtmpl).expanduser().parent),
         )
 
-        # Different YouTube player clients succeed or fail independently. Try
-        # the default first, then the clients that most often still work.
-        attempts: List[Optional[List[str]]] = [None, ["android"], ["tv"]]
+        # Three download methods are tried in order. YouTube changes its player
+        # constantly, so a single strategy that works today can fail tomorrow:
+        # if the standard extraction fails we retry with other player clients,
+        # and finally with a single-file (progressive) format that needs no
+        # merging at all.
+        attempts: List[_DownloadAttempt] = [
+            _DownloadAttempt("standard"),
+            _DownloadAttempt(
+                "alternate player clients", clients=["android", "ios", "tv"]
+            ),
+            _DownloadAttempt(
+                "single-file format",
+                clients=["android_vr"],
+                progressive=True,
+            ),
+        ]
         fragments = max(1, int(concurrent_fragments))
         info: Optional[Dict[str, Any]] = None
         last_error: Optional[Exception] = None
+        failed_methods: List[str] = []
 
-        attempt = 0
-        while attempt < len(attempts):
-            clients = attempts[attempt]
+        for attempt, plan in enumerate(attempts):
+            if attempt:
+                # A stale .part/.ytdl file from the failed attempt can poison
+                # the next one, so clean it up before retrying.
+                _remove_partial_files(tracker.candidates)
+                tracker.reset()
+
+            self._log(
+                f"Download method {attempt + 1}/{len(attempts)}: {plan.label}"
+            )
             opts = self._download_options(
                 outtmpl=outtmpl, quality=quality, skip_existing=skip_existing,
                 retries=retries, concurrent_fragments=fragments,
                 embed_metadata=embed_metadata, embed_thumbnail=embed_thumbnail,
-                tracker=tracker,
+                tracker=tracker, progressive=plan.progressive,
             )
-            if clients:
-                opts.setdefault("extractor_args", {})["youtube"] = {"player_client": clients}
+            if plan.clients:
+                opts.setdefault("extractor_args", {})["youtube"] = {
+                    "player_client": list(plan.clients)
+                }
             try:
                 with _TrackingYoutubeDL(opts, tracker) as ydl:
                     info = ydl.extract_info(url, download=True)
@@ -793,41 +842,25 @@ class DownloadService:
             except DownloadCancelled as exc:
                 self._log("Download cancelled by user.")
                 return tracker.build_result(STATUS_CANCELLED, str(exc))
-            except DownloadError as exc:
+            except Exception as exc:  # noqa: BLE001 - DownloadError, OSError, ...
                 last_error = exc
-                can_retry = (
-                    attempt + 1 < len(attempts)
-                    and not _is_permanent_error(exc)
-                    and _needs_client_fallback(exc)
-                )
-                if can_retry:
+                message = _friendly_error(exc)
+                failed_methods.append(f"{plan.label}: {message}")
+                if attempt + 1 < len(attempts) and not _is_permanent_error(exc):
                     self._log(
-                        "Download attempt failed ("
-                        + str(exc).splitlines()[0][:120]
-                        + "). Retrying with another YouTube client…"
+                        f"Method {attempt + 1} ({plan.label}) failed: {message}. "
+                        f"Trying method {attempt + 2} "
+                        f"({attempts[attempt + 1].label})…"
                     )
-                    # A stale .part file from the failed attempt can poison the
-                    # next one, so clean it up before retrying.
-                    _remove_partial_files(tracker.candidates)
-                    tracker.reset()
                     if _needs_lower_concurrency(exc) and fragments > 1:
                         fragments = 1
-                    attempt += 1
                     continue
-                msg = _friendly_error(exc)
+                msg = _all_methods_failed(failed_methods)
                 self._log(f"Download failed: {msg}")
-                return tracker.build_result(STATUS_FAILED, msg)
-            except OSError as exc:
-                msg = _friendly_error(exc)
-                self._log(f"Download failed: {msg}")
-                return tracker.build_result(STATUS_FAILED, msg)
-            except Exception as exc:  # noqa: BLE001
-                msg = _friendly_error(exc)
-                self._log(f"Unexpected download error: {msg}")
                 return tracker.build_result(STATUS_FAILED, msg)
 
         if info is None and last_error is not None:
-            msg = _friendly_error(last_error)
+            msg = _all_methods_failed(failed_methods)
             self._log(f"Download failed: {msg}")
             return tracker.build_result(STATUS_FAILED, msg)
 
@@ -967,6 +1000,18 @@ _PERMANENT_ERROR_MARKERS = (
     "unsupported url",
     "is not a valid url",
 )
+
+
+def _all_methods_failed(failed: List[str]) -> str:
+    """Combine per-method errors into one actionable message."""
+    if not failed:
+        return "Download failed."
+    if len(failed) == 1:
+        return failed[0]
+    return (
+        f"All {len(failed)} download methods failed. "
+        f"Last error: {failed[-1]}"
+    )
 
 
 def _needs_client_fallback(exc: Exception) -> bool:
