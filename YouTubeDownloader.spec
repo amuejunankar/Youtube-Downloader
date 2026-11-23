@@ -30,6 +30,24 @@ from app.utils import detect_ffmpeg  # noqa: E402
 # --- yt-dlp data files + submodules (extractor list, etc.) --------------- #
 yt_datas, yt_binaries, yt_hidden = collect_all("yt_dlp")
 
+# --- yt-dlp-ejs challenge solver scripts --------------------------------- #
+# Shipped by ``yt-dlp[default]``. Without them yt-dlp cannot solve YouTube's
+# JavaScript challenges, which costs formats and causes failed downloads.
+try:
+    ejs_datas, ejs_binaries, ejs_hidden = collect_all("yt_dlp_ejs")
+except Exception:  # plain `pip install yt-dlp`, no [default] extra
+    ejs_datas, ejs_binaries, ejs_hidden = [], [], []
+
+# --- Bundled JavaScript runtime (QuickJS-NG) ----------------------------- #
+# Fetched by scripts/fetch_js_runtime.py; the app falls back to Deno/Node from
+# PATH when it is absent.
+js_binaries = []
+_js_dir = ROOT / "vendor" / "js"
+if _js_dir.is_dir():
+    for _entry in sorted(_js_dir.iterdir()):
+        if _entry.is_file():
+            js_binaries.append((str(_entry), "."))
+
 # --- FFmpeg / FFprobe ---------------------------------------------------- #
 # Off by default: the binaries are large (~200 MB each) and the app already
 # auto-detects FFmpeg from PATH / WinGet. Set YD_BUNDLE_FFMPEG=1 to ship a
@@ -48,13 +66,13 @@ if os.environ.get("YD_BUNDLE_FFMPEG") == "1":
 _icon = ROOT / "assets" / "app.ico"
 icon_path = str(_icon) if _icon.is_file() else None
 
-hidden = list(yt_hidden) + ["PySide6.QtSvg", "PySide6.QtNetwork"]
+hidden = list(yt_hidden) + list(ejs_hidden) + ["PySide6.QtSvg", "PySide6.QtNetwork"]
 
 a = Analysis(
     [str(ROOT / "main.py")],
     pathex=[str(ROOT)],
-    binaries=ffmpeg_binaries + yt_binaries,
-    datas=yt_datas,
+    binaries=ffmpeg_binaries + yt_binaries + ejs_binaries + js_binaries,
+    datas=yt_datas + ejs_datas,
     hiddenimports=hidden,
     hookspath=[],
     hooksconfig={},

@@ -46,6 +46,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
+      - name: Fetch the bundled JavaScript runtime
+        run: python scripts/fetch_js_runtime.py
+
       - name: Install FFmpeg and Inno Setup
         run: |
           choco install ffmpeg innosetup --no-progress -y

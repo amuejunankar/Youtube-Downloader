@@ -24,6 +24,8 @@ hand-picked playlist entries — including MP3 audio.
 - Background downloads with per-item status and safe cancellation.
 - Windows: bundled FFmpeg, no Python required.
 - Android: saves through MediaStore and accepts shared YouTube links.
+- Ships its own JavaScript runtime (QuickJS-NG) and yt-dlp challenge solver,
+  so downloads work without installing Deno, Node or anything else.
 - No ads, no tracking, and no cookies or tokens written to logs.
 
 ## Install

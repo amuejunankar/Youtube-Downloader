@@ -474,3 +474,62 @@ def probe_media(path: str | Path, ffprobe_path: Optional[str] = None, timeout: i
     result["video"] = next((s for s in streams if s.get("codec_type") == "video"), None)
     result["audio"] = next((s for s in streams if s.get("codec_type") == "audio"), None)
     return result
+
+
+# --------------------------------------------------------------------------- #
+# JavaScript runtime detection
+# --------------------------------------------------------------------------- #
+
+@dataclass(frozen=True)
+class JsRuntime:
+    """A JavaScript runtime yt-dlp can use to solve YouTube's challenges."""
+
+    name: str   # yt-dlp runtime key: deno | quickjs | node | bun
+    path: str   # absolute path to the executable
+
+
+# Ordered by preference. QuickJS comes first because the app bundles it, so a
+# known-good runtime beats whatever happens to be installed.
+_RUNTIME_EXECUTABLES = (
+    ("deno", "deno"),
+    ("quickjs", "qjs"),
+    ("node", "node"),
+    ("bun", "bun"),
+)
+
+
+def _runtime_dirs() -> list:
+    """Folders that may hold a runtime shipped with the app, best first."""
+    dirs = []
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        dirs.append(Path(meipass))
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        dirs.extend((exe_dir, exe_dir / "_internal"))
+    dirs.append(Path(__file__).resolve().parent.parent / "vendor" / "js")
+    return dirs
+
+
+def detect_js_runtime() -> Optional[JsRuntime]:
+    """Return the JavaScript runtime yt-dlp should use, or ``None``.
+
+    The bundled QuickJS-NG binary is preferred so the app behaves the same on
+    every machine; otherwise any runtime on ``PATH`` is used. yt-dlp itself
+    only looks for Deno, so finding Node or QuickJS here is what makes those
+    work for users who happen to have them installed.
+    """
+    suffix = ".exe" if os.name == "nt" else ""
+    for directory in _runtime_dirs():
+        for name, executable in _RUNTIME_EXECUTABLES:
+            candidate = directory / f"{executable}{suffix}"
+            try:
+                if candidate.is_file() and os.access(candidate, os.X_OK):
+                    return JsRuntime(name, str(candidate))
+            except OSError:
+                continue
+    for name, executable in _RUNTIME_EXECUTABLES:
+        found = shutil.which(executable)
+        if found:
+            return JsRuntime(name, found)
+    return None

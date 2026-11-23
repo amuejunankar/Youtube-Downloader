@@ -583,3 +583,53 @@ def test_unavailable_mapping_via_parse():
         {"id": "1", "title": "Deleted video", "url": None},
     ]})
     assert entries[0].available is False
+
+
+# --------------------------------------------------------------------------- #
+# JavaScript runtime wiring
+# --------------------------------------------------------------------------- #
+
+def test_base_options_uses_detected_js_runtime(monkeypatch):
+    monkeypatch.setattr(
+        downloader, "detect_js_runtime",
+        lambda: downloader.JsRuntime("quickjs", "/opt/qjs"),
+    )
+    opts = downloader.DownloadService(ffmpeg_status=FFmpegStatus()).base_options()
+    assert opts["js_runtimes"] == {"quickjs": {"path": "/opt/qjs"}}
+
+
+def test_base_options_omits_js_runtime_when_missing(monkeypatch):
+    monkeypatch.setattr(downloader, "detect_js_runtime", lambda: None)
+    opts = downloader.DownloadService(ffmpeg_status=FFmpegStatus()).base_options()
+    assert "js_runtimes" not in opts
+
+
+def test_detect_js_runtime_prefers_bundled_binary(tmp_path, monkeypatch):
+    import app.utils as app_utils
+
+    for name in ("qjs", "qjs.exe"):
+        binary = tmp_path / name
+        binary.write_bytes(b"")
+        binary.chmod(0o755)
+    monkeypatch.setattr(app_utils, "_runtime_dirs", lambda: [tmp_path])
+    monkeypatch.setattr(app_utils.shutil, "which", lambda name: "/usr/bin/deno")
+
+    runtime = app_utils.detect_js_runtime()
+    assert runtime is not None
+    assert runtime.name == "quickjs"
+    assert runtime.path.startswith(str(tmp_path))
+
+
+def test_detect_js_runtime_falls_back_to_path(tmp_path, monkeypatch):
+    import app.utils as app_utils
+
+    monkeypatch.setattr(app_utils, "_runtime_dirs", lambda: [tmp_path])
+    monkeypatch.setattr(
+        app_utils.shutil, "which",
+        lambda name: "/usr/bin/deno" if name == "deno" else None,
+    )
+
+    runtime = app_utils.detect_js_runtime()
+    assert runtime is not None
+    assert runtime.name == "deno"
+    assert runtime.path == "/usr/bin/deno"

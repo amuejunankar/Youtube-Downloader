@@ -35,8 +35,10 @@ from .utils import (
     KIND_VIDEO,
     KIND_VIDEO_IN_PLAYLIST,
     FFmpegStatus,
+    JsRuntime,
     classify_url,
     detect_ffmpeg,
+    detect_js_runtime,
     ensure_dir,
     human_bytes,
     sanitize_filename,
@@ -58,6 +60,15 @@ except Exception as exc:  # pragma: no cover - exercised only without yt-dlp
     YTDLP_AVAILABLE = False
     YTDLP_IMPORT_ERROR = str(exc)
     _YTDLP_ERRORS = ()
+
+# yt-dlp needs the ``yt-dlp-ejs`` challenge solver scripts to run YouTube's
+# JavaScript challenges. ``pip install "yt-dlp[default]"`` ships them; when they
+# are missing, yt-dlp may fetch them from GitHub at runtime instead.
+try:  # pragma: no cover - depends on how yt-dlp was installed
+    import yt_dlp_ejs  # noqa: F401
+    _EJS_AVAILABLE = True
+except Exception:  # pragma: no cover
+    _EJS_AVAILABLE = False
 
 
 STATUS_COMPLETED = "completed"
@@ -528,6 +539,15 @@ class DownloadService:
     ):
         self.ffmpeg = ffmpeg_status or detect_ffmpeg()
         self._log_cb = log_cb
+        # yt-dlp needs a JavaScript runtime to solve YouTube's challenges, and
+        # only Deno is looked up by default. The app ships QuickJS-NG so this
+        # works on a fresh machine with nothing installed.
+        self.js_runtime = detect_js_runtime()
+        if log_cb:
+            log_cb("JavaScript runtime: " + (
+                f"{self.js_runtime.name} ({self.js_runtime.path})"
+                if self.js_runtime else "not found - YouTube support is limited"
+            ))
 
     # -- logging ----------------------------------------------------------- #
     def _log(self, msg: str) -> None:
@@ -567,6 +587,15 @@ class DownloadService:
         }
         if self.ffmpeg.ffmpeg:
             opts["ffmpeg_location"] = str(Path(self.ffmpeg.ffmpeg).parent)
+        if self.js_runtime is not None:
+            # Passing this replaces yt-dlp's default (deno only) with the
+            # runtime we actually found, bundled or installed.
+            opts["js_runtimes"] = {
+                self.js_runtime.name: {"path": self.js_runtime.path}
+            }
+        if not _EJS_AVAILABLE:
+            # No bundled solver scripts (plain ``pip install yt-dlp``).
+            opts["remote_components"] = ["ejs:github"]
         return opts
 
     def _download_options(
@@ -1170,7 +1199,9 @@ def _friendly_error(exc: Exception) -> str:
     if "http error 429" in low or "too many requests" in low:
         return "YouTube is rate limiting requests (HTTP 429). Wait and retry."
     if "http error 403" in low:
-        return "Access denied (HTTP 403). The video may be region-blocked."
+        return ("YouTube denied the download (HTTP 403). This usually means "
+                "YouTube is blocking this network/IP, or the video is "
+                "region-restricted. Try another network or a VPN.")
     if "unable to download webpage" in low or "getaddrinfo" in low or "timed out" in low \
             or "network" in low or "connection" in low:
         return "Network error while contacting YouTube. Check your connection."
