@@ -31,7 +31,7 @@
   "name": "YouTube Downloader",
   "applicationCategory": "MultimediaApplication",
   "operatingSystem": "Windows 10, Windows 11, Android 7.0+",
-  "softwareVersion": "1.3.2",
+  "softwareVersion": "1.3.3",
   "description": "Open-source YouTube downloader for Windows and Android with 4K video, MP3 audio, and playlist support.",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
   "downloadUrl": "https://github.com/amuejunankar/Youtube-Downloader/releases/latest"
@@ -94,7 +94,7 @@
 <main id="main">
   <section class="hero wrap">
     <div class="hero-copy">
-      <span class="pill reveal"><span class="pulse"></span> v<span id="version">1.3.2</span> &middot; Windows &amp; Android</span>
+      <span class="pill reveal"><span class="pulse"></span> v<span id="version">1.3.3</span> &middot; Windows &amp; Android</span>
       <h1 class="reveal">Save YouTube videos<br><span class="grad">the way you want.</span></h1>
       <p class="lede reveal">A fast, free, open-source downloader for Windows and Android. Pick a quality, merge video and audio, extract MP3, or grab a whole playlist â€” no ads, no account, no command line.</p>
       <div class="hero-cta reveal">
@@ -130,7 +130,7 @@
   <section class="wrap">
     <ul class="strip reveal">
       <li><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"/></svg><span><strong>Open source</strong>Review every line on GitHub</span></li>
-      <li><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-zap"/></svg><span><strong>Batteries included</strong>FFmpeg and yt-dlp bundled</span></li>
+      <li><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-zap"/></svg><span><strong>Batteries included</strong>FFmpeg, yt-dlp and a JS engine inside</span></li>
       <li><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-music"/></svg><span><strong>Audio ready</strong>MP3 with metadata</span></li>
       <li><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-list"/></svg><span><strong>Batch friendly</strong>Whole playlists at once</span></li>
     </ul>
@@ -211,7 +211,7 @@
       <article class="feature reveal">
         <span class="feat-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-zap"/></svg></span>
         <h3>No setup</h3>
-        <p>FFmpeg and the download engine ship inside the app. No Python, no PATH edits, no dependencies.</p>
+        <p>FFmpeg, the download engine and the JavaScript runtime YouTube needs all ship inside the app. No Python, no Deno or Node, no PATH edits.</p>
       </article>
       <article class="feature reveal">
         <span class="feat-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"/></svg></span>
@@ -270,7 +270,7 @@
       </details>
       <details>
         <summary>Do I need Python or FFmpeg?</summary>
-        <p>No. FFmpeg and the download engine are bundled in both builds, so merging video and audio works immediately after install.</p>
+        <p>No. FFmpeg, the download engine and the JavaScript runtime used to solve YouTube's player challenges are bundled in the Windows build, so merging video and audio works immediately after install.</p>
       </details>
       <details>
         <summary>Where do downloads go?</summary>
