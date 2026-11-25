@@ -1,5 +1,5 @@
 ﻿/* =========================================================
-   YouTube Downloader â€” site styles
+   YouTube Downloader — site styles
    ========================================================= */
 
 :root {
@@ -974,6 +974,124 @@ svg {
   font-size: 0.82rem;
 }
 
+/* ---------- Mobile menu ---------- */
+
+.menu-btn { display: none; }
+.icon-close { display: none; }
+.menu-btn[aria-expanded="true"] .icon-burger { display: none; }
+.menu-btn[aria-expanded="true"] .icon-close { display: block; }
+.menu-btn[aria-expanded="true"] { color: var(--text); background: var(--surface); border-color: var(--line); }
+
+.mobile-nav {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 49;
+  padding: 80px 0 14px;
+  background: rgba(7, 11, 20, 0.96);
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="light"] .mobile-nav { background: rgba(244, 247, 255, 0.96); }
+
+.mobile-nav.open { display: block; }
+
+.mobile-nav .wrap {
+  display: grid;
+  gap: 2px;
+}
+
+.mobile-nav a {
+  padding: 13px 4px;
+  border-bottom: 1px solid var(--line);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--muted);
+  transition: color 0.2s ease;
+}
+
+.mobile-nav a:last-child { border-bottom: 0; }
+.mobile-nav a:hover, .mobile-nav a:focus-visible { color: var(--text); }
+
+@media (max-width: 900px) {
+  .menu-btn { display: grid; }
+}
+
+@media (min-width: 901px) {
+  .mobile-nav { display: none !important; }
+}
+
+/* ---------- What's new ---------- */
+
+.whatsnew {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  align-items: center;
+  gap: 30px;
+  margin-top: 26px;
+  padding: 30px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(120% 120% at 0% 0%, rgba(79, 140, 255, 0.13), transparent 58%),
+    linear-gradient(180deg, var(--surface), rgba(255, 255, 255, 0.012));
+  box-shadow: var(--shadow-sm);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: #fff;
+  background: linear-gradient(135deg, var(--brand), var(--brand-2));
+  box-shadow: 0 8px 20px rgba(79, 140, 255, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.whatsnew h2 {
+  margin: 16px 0 10px;
+  font-size: clamp(1.45rem, 2.6vw, 1.95rem);
+}
+
+.whatsnew-copy p { color: var(--muted); font-size: 0.95rem; }
+
+.whatsnew-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.whatsnew-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.87rem;
+  line-height: 1.55;
+}
+
+.whatsnew-list strong {
+  color: var(--text);
+  font-size: 0.93rem;
+  font-weight: 650;
+}
+
 /* ---------- Reveal ---------- */
 
 .reveal {
@@ -1016,6 +1134,7 @@ svg {
 
 @media (max-width: 900px) {
   .nav { display: none; }
+  .whatsnew { grid-template-columns: 1fr; gap: 22px; padding: 24px; }
   .strip { grid-template-columns: repeat(2, 1fr); }
   .feature-grid { grid-template-columns: repeat(2, 1fr); }
   .platform-grid { grid-template-columns: 1fr; }

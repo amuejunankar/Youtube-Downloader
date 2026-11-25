@@ -44,6 +44,9 @@
 
   const versionEl = document.getElementById("version");
   if (versionEl) versionEl.textContent = TAG;
+  document.querySelectorAll("[data-tag]").forEach((el) => {
+    el.textContent = TAG;
+  });
 
   /* ---------- Release metadata ---------- */
 
@@ -56,6 +59,9 @@
 
       const tag = String(release.tag_name || TAG).replace(/^v/i, "");
       if (versionEl) versionEl.textContent = tag;
+      document.querySelectorAll("[data-tag]").forEach((el) => {
+        el.textContent = tag;
+      });
 
       (release.assets || []).forEach((asset) => {
         const size = human(asset.size);
@@ -140,6 +146,33 @@
     revealItems.forEach((el) => observer.observe(el));
   } else {
     revealItems.forEach((el) => el.classList.add("in"));
+  }
+
+  /* ---------- Mobile menu ---------- */
+
+  const menuToggle = document.getElementById("menu-toggle");
+  const mobileNav = document.getElementById("mobile-nav");
+
+  const setMenu = (open) => {
+    if (!menuToggle || !mobileNav) return;
+    mobileNav.classList.toggle("open", open);
+    menuToggle.setAttribute("aria-expanded", open ? "true" : "false");
+    menuToggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+  };
+
+  if (menuToggle && mobileNav) {
+    menuToggle.addEventListener("click", () => {
+      setMenu(menuToggle.getAttribute("aria-expanded") !== "true");
+    });
+    mobileNav.querySelectorAll("a").forEach((link) => {
+      link.addEventListener("click", () => setMenu(false));
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") setMenu(false);
+    });
+    window.addEventListener("resize", () => {
+      if (window.innerWidth > 900) setMenu(false);
+    });
   }
 
   /* ---------- Footer year ---------- */
