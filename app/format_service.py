@@ -189,9 +189,12 @@ def format_selector(quality: str, ffmpeg_available: bool = True) -> str:
 
     if ffmpeg_available:
         if height is None:
-            return "bestvideo+bestaudio/best"
+            # ``bestvideo*`` also accepts a combined stream, which avoids
+            # "Requested format is not available" for videos that only expose
+            # progressive formats.
+            return "bestvideo*+bestaudio/best"
         return (
-            f"bestvideo[height<={height}]+bestaudio/"
+            f"bestvideo*[height<={height}]+bestaudio/"
             f"best[height<={height}]/best"
         )
 

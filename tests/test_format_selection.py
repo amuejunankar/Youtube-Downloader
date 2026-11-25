@@ -92,7 +92,7 @@ def test_height_label():
 # --------------------------------------------------------------------------- #
 
 def test_format_selector_best_with_ffmpeg():
-    assert fs.format_selector(fs.QUALITY_BEST, True) == "bestvideo+bestaudio/best"
+    assert fs.format_selector(fs.QUALITY_BEST, True) == "bestvideo*+bestaudio/best"
 
 
 def test_format_selector_best_without_ffmpeg():
@@ -101,7 +101,7 @@ def test_format_selector_best_without_ffmpeg():
 
 def test_format_selector_height_with_ffmpeg():
     sel = fs.format_selector("1080", True)
-    assert "bestvideo[height<=1080]+bestaudio" in sel
+    assert "bestvideo*[height<=1080]+bestaudio" in sel
     assert "best[height<=1080]" in sel
 
 

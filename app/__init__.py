@@ -1,4 +1,4 @@
 """YouTube Downloader application package."""
 
-__version__ = "1.3.3"
+__version__ = "1.3.4"
 APP_NAME = "YouTube Downloader"

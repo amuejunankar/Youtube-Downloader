@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
     QComboBox,
+    QDialog,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -50,6 +51,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QScrollArea,
+    QStyle,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -99,6 +101,25 @@ QWidget {
 /* One background everywhere: no OS dark-mode black, no stark white gaps. */
 QMainWindow, QDialog { background: #eef2fa; }
 QMessageBox { background: #f6f9ff; }
+QMessageBox QLabel { color: #101a2f; background: transparent; }
+QMessageBox QLabel#qt_msgbox_label { color: #101a2f; }
+QMessageBox QLabel#qt_msgbox_informativelabel { color: #475569; font-size: 9pt; }
+QMessageBox QPushButton { min-width: 78px; }
+
+/* DetailsDialog: painted light background, explicit text colours. */
+#DlgHeadline { color: #0b1220; font-size: 12pt; font-weight: 800; }
+#DlgMessage { color: #33415c; }
+#DlgHint { color: #6b7a93; font-size: 9pt; }
+QPushButton#DlgOk {
+    background: #2563eb;
+    color: #ffffff;
+    border: 0;
+    border-radius: 8px;
+    padding: 8px 22px;
+    font-weight: 700;
+}
+QPushButton#DlgOk:hover { background: #1d4ed8; }
+QPushButton#DlgOk:pressed { background: #1e40af; }
 QLabel { background: transparent; }
 QScrollArea { background: transparent; border: 0; }
 QScrollArea > QWidget > QWidget { background: transparent; }
@@ -334,6 +355,117 @@ def apply_theme(app: QApplication) -> None:
     app.setStyle("Fusion")
     app.setPalette(build_palette())
     app.setStyleSheet(STYLESHEET)
+
+
+class DetailsDialog(QDialog):
+    """An always-readable message dialog.
+
+    ``QMessageBox`` takes its frame and background from the platform style, so
+    on a dark Windows theme its body could come out dark while the app's
+    stylesheet still forced near-black text: the message was there but
+    invisible. This dialog paints its own light background and sets an
+    explicit colour on every label, so a download failure is always legible.
+    """
+
+    BACKGROUND = QColor("#f6f9ff")
+
+    def __init__(
+        self,
+        parent: Optional[QWidget],
+        *,
+        headline: str,
+        message: str,
+        hint: str = "",
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(APP_NAME)
+        self.setModal(True)
+        self.setAutoFillBackground(True)
+        self.setMinimumWidth(460)
+        self.setMaximumWidth(620)
+
+        palette = self.palette()
+        palette.setColor(QPalette.ColorRole.Window, self.BACKGROUND)
+        palette.setColor(QPalette.ColorRole.WindowText, QColor("#101a2f"))
+        self.setPalette(palette)
+
+        icon = self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxWarning)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 18, 20, 16)
+        layout.setSpacing(12)
+
+        head = QHBoxLayout()
+        head.setSpacing(10)
+        if not icon.isNull():
+            glyph = QLabel()
+            glyph.setPixmap(icon.pixmap(28, 28))
+            glyph.setFixedSize(30, 30)
+            glyph.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            head.addWidget(glyph, 0, Qt.AlignmentFlag.AlignTop)
+        headline_label = QLabel(headline)
+        headline_label.setObjectName("DlgHeadline")
+        headline_label.setWordWrap(True)
+        head.addWidget(headline_label, 1)
+        layout.addLayout(head)
+
+        body = QLabel(message)
+        body.setObjectName("DlgMessage")
+        body.setWordWrap(True)
+        body.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setMaximumHeight(240)
+        scroll.setWidget(body)
+        layout.addWidget(scroll)
+
+        if hint:
+            hint_label = QLabel(hint)
+            hint_label.setObjectName("DlgHint")
+            hint_label.setWordWrap(True)
+            layout.addWidget(hint_label)
+
+        buttons = QHBoxLayout()
+        buttons.addStretch(1)
+        ok = QPushButton("OK")
+        ok.setObjectName("DlgOk")
+        ok.setDefault(True)
+        ok.setAutoDefault(True)
+        ok.clicked.connect(self.accept)
+        buttons.addWidget(ok)
+        layout.addLayout(buttons)
+
+        self._headline = headline
+        self._message = message
+
+    def paintEvent(self, event) -> None:  # noqa: N802 (Qt naming)
+        """Fill the window with the light background, whatever the OS theme."""
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), self.BACKGROUND)
+        painter.end()
+
+
+def failure_report(summary: Dict[str, Any]) -> tuple[str, str, str]:
+    """Build ``(headline, message, hint)`` for a failed download summary."""
+    failed_results = [
+        r for r in summary.get("results", []) if r.get("status") == STATUS_FAILED
+    ]
+    lines = []
+    for result in failed_results:
+        title = (result.get("title") or result.get("url") or "This video").strip()
+        reason = (result.get("error") or "Unknown error").strip()
+        lines.append(f"{title}\n    {reason}")
+    count = len(failed_results) or int(summary.get("failed", 0) or 0)
+    headline = "1 download failed" if count == 1 else f"{count} downloads failed"
+    completed = int(summary.get("completed", 0) or 0)
+    hint_parts = []
+    if completed:
+        hint_parts.append(f"{completed} downloaded successfully.")
+    hint_parts.append("Pressing Download again retries the failed items.")
+    hint_parts.append("File ▸ Open logs folder keeps the full yt-dlp log.")
+    message = "\n\n".join(lines) or "The download did not produce a file."
+    return headline, message, " ".join(hint_parts)
 
 
 class MainWindow(QMainWindow):
@@ -1243,12 +1375,11 @@ class MainWindow(QMainWindow):
         self._update_button_states()
 
         if failed and not cancelled:
-            QMessageBox.warning(
-                self, "Some downloads failed",
-                f"{completed} downloaded, {failed} failed.\n"
-                "Open More options ▸ Show details for the reason. "
-                "Pressing Download again retries them.",
-            )
+            self._show_download_errors(summary)
+
+    def _show_download_errors(self, summary: Dict[str, Any]) -> None:
+        headline, message, hint = failure_report(summary)
+        DetailsDialog(self, headline=headline, message=message, hint=hint).exec()
 
     @Slot(str)
     def _on_download_failed(self, message: str) -> None:
@@ -1256,7 +1387,12 @@ class MainWindow(QMainWindow):
         self._set_hint(f"Download failed: {message}", "HintError")
         self.statusBar().showMessage("Failed.")
         self._update_button_states()
-        QMessageBox.critical(self, "Download failed", message)
+        DetailsDialog(
+            self,
+            headline="Download failed",
+            message=message,
+            hint="File ▸ Open logs folder keeps the full yt-dlp log.",
+        ).exec()
 
     @Slot()
     def _cleanup_download(self) -> None:

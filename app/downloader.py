@@ -1186,6 +1186,13 @@ def _friendly_error(exc: Exception) -> str:
         return "Permission denied writing to the output folder."
     if "ffmpeg" in low:
         return f"FFmpeg problem: {msg}"
+    if "requested format is not available" in low or "no video formats found" in low:
+        return ("YouTube did not offer a downloadable format for this video. "
+                "This is usually temporary — try again in a minute.")
+    if "sign in to confirm" in low and "bot" in low:
+        return ("YouTube asked for a sign-in check (\"confirm you're not a bot\"). "
+                "It does this for some networks; try again later or from a "
+                "different connection.")
     if "private video" in low:
         return "This video is private and cannot be downloaded."
     if "sign in to confirm your age" in low or "age" in low and "restricted" in low:

@@ -14,7 +14,10 @@ import pytest
 
 pytest.importorskip("PySide6")
 
-from PySide6.QtWidgets import QApplication  # noqa: E402
+try:  # a headless machine can have the wheel but not the Qt system libraries
+    from PySide6.QtWidgets import QApplication  # noqa: E402
+except ImportError as exc:  # pragma: no cover - environment dependent
+    pytest.skip(f"PySide6 GUI is unavailable: {exc}", allow_module_level=True)
 
 import app.workers as workers  # noqa: E402
 from app.downloader import AnalysisResult, DownloadResult, KIND_VIDEO  # noqa: E402
@@ -117,3 +120,31 @@ def test_download_worker_empty_tasks_fails(qt_app):
     w.failed.connect(errors.append)
     w.run()
     assert errors and "no videos" in errors[0].lower()
+
+
+def test_details_dialog_is_readable_and_shows_reason(qt_app):
+    from PySide6.QtGui import QPalette
+    from PySide6.QtWidgets import QLabel
+
+    from app.main_window import DetailsDialog, failure_report
+
+    headline, message, hint = failure_report({
+        "completed": 0,
+        "failed": 1,
+        "results": [{
+            "status": "failed",
+            "title": "Test video",
+            "url": "https://www.youtube.com/watch?v=x",
+            "error": "HTTP Error 403: Forbidden",
+        }],
+    })
+    assert headline == "1 download failed"
+    assert "HTTP Error 403" in message
+
+    dlg = DetailsDialog(None, headline=headline, message=message, hint=hint)
+    # The body text must be dark on the dialog's own light background, whatever
+    # the operating system theme is.
+    palette = dlg.palette()
+    assert palette.color(QPalette.ColorRole.Window).lightness() > 200
+    labels = dlg.findChildren(QLabel)
+    assert any("HTTP Error 403" in label.text() for label in labels)

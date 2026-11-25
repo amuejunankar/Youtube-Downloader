@@ -561,6 +561,8 @@ def test_tracker_postprocessor_hook_records_file(tmp_path):
     ("Unable to download webpage: getaddrinfo failed", "network"),
     ("This video is only available to Music Premium members (members-only)", "members"),
     ("No space left on device", "space"),
+    ("Requested format is not available. Use --list-formats", "format"),
+    ("Sign in to confirm you're not a bot", "sign-in check"),
 ])
 def test_friendly_error(raw, needle):
     msg = downloader._friendly_error(Exception(raw)).lower()
