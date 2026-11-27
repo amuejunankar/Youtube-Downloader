@@ -298,19 +298,63 @@ class FFmpegStatus:
         return bool(self.ffmpeg and self.ffprobe)
 
     @property
+    def usable(self) -> bool:
+        """True only when both binaries exist *and* both actually run.
+
+        A file named ``ffmpeg.exe`` can be present yet useless: a truncated
+        copy, a Chocolatey/WinGet shim whose real target is missing, or a
+        binary that needs DLLs the machine does not have. yt-dlp then fails
+        while merging, so the app must not ask it to merge in that case.
+        """
+        return bool(self.available and self.ffmpeg_version and self.ffprobe_version)
+
+    @property
+    def broken(self) -> bool:
+        """Binaries were found but at least one of them cannot run."""
+        return self.available and not self.usable
+
+    @property
     def partial(self) -> bool:
         return bool(self.ffmpeg) ^ bool(self.ffprobe)
 
     def describe(self) -> str:
-        if self.available:
+        if self.usable:
             return (
                 f"FFmpeg found ({self.source}): {self.ffmpeg}\n"
                 f"FFprobe found: {self.ffprobe}"
             )
+        if self.broken:
+            lines = [f"FFmpeg found ({self.source}) but it cannot run:"]
+            if self.ffmpeg and not self.ffmpeg_version:
+                lines.append(f"  ffmpeg failed: {self.ffmpeg}")
+            if self.ffprobe and not self.ffprobe_version:
+                lines.append(f"  ffprobe failed: {self.ffprobe}")
+            lines.extend(self.notes)
+            lines.append(
+                "Downloads will use single-file (already merged) formats "
+                "until a working FFmpeg is available."
+            )
+            return "\n".join(lines)
         if self.partial:
             missing = "FFprobe" if self.ffmpeg else "FFmpeg"
             return f"Partial: {missing} is missing. Merging/verification limited."
         return "FFmpeg and FFprobe were not found."
+
+
+def _validated_version(exe: str, name: str) -> Optional[str]:
+    """Version line if *exe* really runs as ``name``, otherwise None.
+
+    ``ffmpeg -version`` on a working binary starts with ``ffmpeg version …``.
+    Anything else (a shim that lost its target, a missing DLL, a truncated
+    file) means the binary cannot be used, whatever its filename says.
+    """
+    output = _run_version(exe)
+    if not output:
+        return None
+    low = output.lower()
+    if name in low and "version" in low:
+        return output
+    return None
 
 
 def _run_version(exe: str, timeout: int = 10) -> Optional[str]:
@@ -392,16 +436,67 @@ def detect_ffmpeg(ffmpeg_location: Optional[str] = None) -> FFmpegStatus:
         else:
             status.notes.append(f"Configured FFmpeg location does not exist: {loc}")
 
-    status.ffmpeg = explicit_ffmpeg or find_executable("ffmpeg", extra_dirs)
-    status.ffprobe = find_executable("ffprobe", extra_dirs)
+    # A copy that ships with the app wins over whatever is on PATH: a broken
+    # system FFmpeg must not shadow the working bundled one.
+    bundled_dirs = [
+        str(Path(__file__).resolve().parent.parent / "vendor" / "ffmpeg"),
+        *extra_dirs,
+    ]
+    status.ffmpeg = (
+        explicit_ffmpeg
+        or _find_in_dirs("ffmpeg", bundled_dirs)
+        or find_executable("ffmpeg", extra_dirs)
+    )
+    status.ffprobe = (
+        _find_in_dirs("ffprobe", bundled_dirs)
+        or find_executable("ffprobe", extra_dirs)
+    )
 
     if status.ffmpeg and status.source == "not found":
         status.source = _describe_ffmpeg_source(status.ffmpeg)
     if status.ffmpeg:
-        status.ffmpeg_version = _run_version(status.ffmpeg)
+        status.ffmpeg_version = _validated_version(status.ffmpeg, "ffmpeg")
+        if not status.ffmpeg_version:
+            status.notes.append(
+                f"{status.ffmpeg} did not report an FFmpeg version, so it "
+                "cannot be used (broken copy, or a shim without its target)."
+            )
     if status.ffprobe:
-        status.ffprobe_version = _run_version(status.ffprobe)
+        status.ffprobe_version = _validated_version(status.ffprobe, "ffprobe")
+        if not status.ffprobe_version:
+            status.notes.append(
+                f"{status.ffprobe} did not report an FFprobe version."
+            )
     return status
+
+
+def _find_in_dirs(name: str, dirs: Iterable[str]) -> Optional[str]:
+    """First executable called *name* inside *dirs* (best directory first)."""
+    exe = f"{name}.exe" if sys.platform == "win32" else name
+    for directory in dirs:
+        if not directory:
+            continue
+        for candidate in (Path(directory) / exe, Path(directory) / name,
+                          Path(directory) / "bin" / exe):
+            try:
+                if candidate.is_file():
+                    return str(candidate)
+            except OSError:
+                continue
+    return None
+
+
+def ffmpeg_binaries_for_bundling() -> list[str]:
+    """Paths of a *working* FFmpeg/FFprobe pair to embed in a build, or ``[]``.
+
+    Builds must never ship a broken ``ffmpeg.exe``: the app would then ask
+    yt-dlp to merge streams and every high-quality download would fail at
+    post-processing. Only binaries that answer ``-version`` are returned.
+    """
+    status = detect_ffmpeg()
+    if not status.usable:
+        return []
+    return [str(status.ffmpeg), str(status.ffprobe)]
 
 
 def _describe_ffmpeg_source(path: str) -> str:
@@ -421,6 +516,12 @@ def _describe_ffmpeg_source(path: str) -> str:
         if resolved.parent == Path(sys.executable).resolve().parent:
             return "bundled with app"
     except OSError:
+        pass
+    vendor = Path(__file__).resolve().parent.parent / "vendor" / "ffmpeg"
+    try:
+        resolved.relative_to(vendor.resolve())
+        return "bundled with app"
+    except (ValueError, OSError):
         pass
     return "system PATH"
 

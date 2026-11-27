@@ -105,11 +105,11 @@ def main(argv: list[str] | None = None) -> int:
         from app.workers import AnalyzeWorker, DownloadWorker  # noqa: F401
 
         st = detect_ffmpeg()
-        logger.info("Self-test imports OK. FFmpeg available=%s (%s)", st.available, st.source)
+        logger.info("Self-test imports OK. FFmpeg usable=%s (%s)", st.usable, st.source)
         logger.info("FFmpeg path=%s", st.ffmpeg)
         logger.info("FFmpeg version=%s", st.ffmpeg_version)
         logger.info("FFprobe version=%s", st.ffprobe_version)
-        print(f"Self-test OK. FFmpeg available={st.available} ({st.source})")
+        print(f"Self-test OK. FFmpeg usable={st.usable} ({st.source})")
         print(f"  ffmpeg : {st.ffmpeg}")
         print(f"  version: {st.ffmpeg_version}")
         return 0

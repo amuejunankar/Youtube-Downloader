@@ -3,7 +3,7 @@
 
   const OWNER = "amuejunankar";
   const REPO = "Youtube-Downloader";
-  const TAG = "1.3.4";
+  const TAG = "1.3.5";
 
   const repoUrl = `https://github.com/${OWNER}/${REPO}`;
   // Windows builds are rebuilt by the "Build Windows app and installer"

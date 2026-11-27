@@ -96,8 +96,13 @@ pytest tests/test_integration.py -v
 ## Troubleshooting
 
 - **Extraction errors after a YouTube change:** `pip install -U yt-dlp`.
-- **High resolutions unavailable:** install FFmpeg; install Deno if formats are
-  still missing.
+- **High resolutions unavailable, or "FFmpeg could not finish the download":**
+  the app merges video with audio through FFmpeg and falls back to
+  single-file formats (no merging, no MP3) when FFmpeg is missing or cannot
+  run. Point **File ▸ Set FFmpeg location…** at a working folder. Builds ship
+  their own copy from `scripts/fetch_ffmpeg.py`, never a package-manager shim.
+- **Formats missing entirely:** install Deno or Node; the app also bundles
+  QuickJS for this.
 - **Antivirus flags a fresh Windows build:** common for PyInstaller one-file
   executables; add an exclusion or use the folder build.
 - **Private/age-restricted videos:** require authentication and are not

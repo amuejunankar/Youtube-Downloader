@@ -548,6 +548,12 @@ class DownloadService:
                 f"{self.js_runtime.name} ({self.js_runtime.path})"
                 if self.js_runtime else "not found - YouTube support is limited"
             ))
+            log_cb("FFmpeg: " + self.ffmpeg.describe().replace("\n", " | "))
+            if not self.ffmpeg.usable:
+                log_cb(
+                    "FFmpeg is not usable: downloads use single-file formats "
+                    "(no merging, no MP3 conversion)."
+                )
 
     # -- logging ----------------------------------------------------------- #
     def _log(self, msg: str) -> None:
@@ -559,7 +565,8 @@ class DownloadService:
 
     @property
     def ffmpeg_available(self) -> bool:
-        return self.ffmpeg.available
+        """Whether FFmpeg can actually run, not merely whether it exists."""
+        return self.ffmpeg.usable
 
     # -- option builders --------------------------------------------------- #
     def base_options(
@@ -585,7 +592,7 @@ class DownloadService:
             "fragment_retries": 5,
             "logger": self._ydl_logger(),
         }
-        if self.ffmpeg.ffmpeg:
+        if self.ffmpeg.usable and self.ffmpeg.ffmpeg:
             opts["ffmpeg_location"] = str(Path(self.ffmpeg.ffmpeg).parent)
         if self.js_runtime is not None:
             # Passing this replaces yt-dlp's default (deno only) with the
@@ -612,10 +619,11 @@ class DownloadService:
         progressive: bool = False,
     ) -> Dict[str, Any]:
         opts = self.base_options(skip_download=False, noplaylist=True)
+        # A progressive attempt is the FFmpeg-free route: the file it gets
+        # already contains picture and sound, so nothing may be merged,
+        # remuxed or tagged afterwards (all of which need FFmpeg).
         opts.update({
             "outtmpl": outtmpl,
-            # A progressive attempt only accepts formats that already contain
-            # picture and sound, so nothing has to be merged afterwards.
             "format": format_selector(
                 quality, self.ffmpeg_available and not progressive
             ),
@@ -624,11 +632,17 @@ class DownloadService:
             "retries": max(1, int(retries)),
             "fragment_retries": max(1, int(retries)),
             "concurrent_fragment_downloads": max(1, int(concurrent_fragments)),
-            "postprocessors": build_postprocessors(
-                quality,
-                ffmpeg_available=self.ffmpeg_available,
-                embed_metadata=embed_metadata,
-                embed_thumbnail=embed_thumbnail,
+            # A progressive attempt is FFmpeg-free only for video/audio kept in
+            # their original container: an MP3 request still needs the encoder
+            # (and is refused earlier when FFmpeg does not work).
+            "postprocessors": (
+                [] if progressive and not is_audio_quality(quality)
+                else build_postprocessors(
+                    quality,
+                    ffmpeg_available=self.ffmpeg_available,
+                    embed_metadata=embed_metadata,
+                    embed_thumbnail=embed_thumbnail,
+                )
             ),
             "progress_hooks": [tracker.progress_hook],
             "postprocessor_hooks": [tracker.postprocessor_hook],
@@ -828,11 +842,11 @@ class DownloadService:
             output_dir=str(Path(outtmpl).expanduser().parent),
         )
 
-        # Three download methods are tried in order. YouTube changes its player
+        # Download methods are tried in order. YouTube changes its player
         # constantly, so a single strategy that works today can fail tomorrow:
         # if the standard extraction fails we retry with other player clients,
-        # and finally with a single-file (progressive) format that needs no
-        # merging at all.
+        # and finally with single-file (progressive) formats that need no
+        # merging and therefore no FFmpeg at all.
         attempts: List[_DownloadAttempt] = [
             _DownloadAttempt("standard"),
             _DownloadAttempt(
@@ -842,6 +856,12 @@ class DownloadService:
                 "single-file format",
                 clients=["android_vr"],
                 progressive=True,
+            ),
+            # Last resort, and the only route that works with a broken or
+            # missing FFmpeg: the default client's combined (muxed) format,
+            # saved exactly as YouTube serves it.
+            _DownloadAttempt(
+                "single-file format (default client)", progressive=True
             ),
         ]
         fragments = max(1, int(concurrent_fragments))
@@ -1185,7 +1205,13 @@ def _friendly_error(exc: Exception) -> str:
             or "read-only file system" in low:
         return "Permission denied writing to the output folder."
     if "ffmpeg" in low:
-        return f"FFmpeg problem: {msg}"
+        return (
+            "FFmpeg could not finish the download (it handles merging video "
+            "with audio and MP3 conversion). The app will retry with a "
+            "single-file format that needs no FFmpeg. If this keeps "
+            "happening, point File ▸ Set FFmpeg location… at a working "
+            "FFmpeg folder."
+        )
     if "requested format is not available" in low or "no video formats found" in low:
         return ("YouTube did not offer a downloadable format for this video. "
                 "This is usually temporary — try again in a minute.")

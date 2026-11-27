@@ -49,9 +49,13 @@ jobs:
       - name: Fetch the bundled JavaScript runtime
         run: python scripts/fetch_js_runtime.py
 
-      - name: Install FFmpeg and Inno Setup
-        run: |
-          choco install ffmpeg innosetup --no-progress -y
+      # A real static build, not the package manager's shim: a copied shim
+      # cannot run on a user's machine and made merged downloads fail.
+      - name: Fetch FFmpeg binaries for the bundle
+        run: python scripts/fetch_ffmpeg.py
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
 
       - name: Generate the application icon
         run: python scripts/make_icon.py
@@ -69,6 +73,32 @@ jobs:
           python -m PyInstaller --noconfirm --clean
           --distpath dist\portable --workpath build\onefile
           YouTubeDownloader.spec
+
+      # Guards the packaging bug that shipped a broken ffmpeg.exe: the copy
+      # that ends up next to the app must answer -version.
+      - name: Verify the bundled FFmpeg runs
+        shell: pwsh
+        run: |
+          $candidates = @(
+            "dist\YouTubeDownloader\_internal\ffmpeg.exe",
+            "dist\YouTubeDownloader\ffmpeg.exe"
+          ) | Where-Object { Test-Path $_ }
+          if (-not $candidates) { throw "No ffmpeg.exe in the app folder build." }
+          $exe = $candidates[0]
+          $first = & $exe -version 2>&1 | Select-Object -First 1
+          Write-Host "$first"
+          if ($LASTEXITCODE -ne 0 -or "$first" -notmatch "ffmpeg version") {
+            throw "Bundled $exe does not run: $first"
+          }
+          foreach ($probe in @(
+            (Join-Path (Split-Path $exe) "ffprobe.exe"),
+            "dist\YouTubeDownloader\ffprobe.exe"
+          )) {
+            if (Test-Path $probe) {
+              & $probe -version | Select-Object -First 1
+              if ($LASTEXITCODE -ne 0) { throw "Bundled $probe does not run." }
+            }
+          }
 
       - name: Read the app version
         id: version

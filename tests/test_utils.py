@@ -173,7 +173,48 @@ def test_detect_ffmpeg_available(monkeypatch):
     monkeypatch.setattr(utils, "_run_version", lambda exe, timeout=10: f"{exe} version 1.0")
     st = utils.detect_ffmpeg()
     assert st.available is True
+    assert st.usable is True
     assert st.ffmpeg and st.ffprobe
+
+
+def test_detect_ffmpeg_present_but_unrunnable(monkeypatch):
+    """A broken ffmpeg.exe (shim, truncated copy, missing DLL) is not usable."""
+    monkeypatch.setattr(utils, "find_executable", lambda name, extra=None: name)
+    monkeypatch.setattr(utils, "_run_version", lambda exe, timeout=10: None)
+    st = utils.detect_ffmpeg()
+    assert st.available is True
+    assert st.usable is False
+    assert st.broken is True
+    assert "cannot run" in st.describe().lower()
+
+
+def test_detect_ffmpeg_rejects_output_that_is_not_a_version(monkeypatch):
+    monkeypatch.setattr(utils, "find_executable", lambda name, extra=None: name)
+    monkeypatch.setattr(utils, "_run_version",
+                        lambda exe, timeout=10: "ShimGen: unable to find the target")
+    st = utils.detect_ffmpeg()
+    assert st.usable is False
+
+
+def test_find_in_dirs_returns_first_match(tmp_path):
+    first, second = tmp_path / "first", tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    for name in ("ffmpeg", "ffmpeg.exe"):
+        (first / name).write_bytes(b"")
+        (second / name).write_bytes(b"")
+    found = utils._find_in_dirs("ffmpeg", [str(first), str(second)])
+    assert found is not None and found.startswith(str(first))
+
+
+def test_ffmpeg_binaries_for_bundling_skips_broken_copies(monkeypatch):
+    monkeypatch.setattr(utils, "detect_ffmpeg", lambda location=None: utils.FFmpegStatus(
+        ffmpeg="ffmpeg", ffprobe="ffprobe"))
+    assert utils.ffmpeg_binaries_for_bundling() == []
+    monkeypatch.setattr(utils, "detect_ffmpeg", lambda location=None: utils.FFmpegStatus(
+        ffmpeg="ffmpeg", ffprobe="ffprobe",
+        ffmpeg_version="ffmpeg version 9", ffprobe_version="ffprobe version 9"))
+    assert utils.ffmpeg_binaries_for_bundling() == ["ffmpeg", "ffprobe"]
 
 
 def test_probe_media_missing_file(tmp_path):

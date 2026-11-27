@@ -834,7 +834,7 @@ class MainWindow(QMainWindow):
         self.chk_skip_existing.setChecked(bool(self.settings.get("skip_existing", True)))
         self.chk_playlist_folder.setChecked(bool(self.settings.get("make_playlist_folder", True)))
         self._reload_quality_combo(
-            default_quality_options(self.ffmpeg.available),
+            default_quality_options(self.ffmpeg.usable),
             self.settings.get("quality", QUALITY_BEST),
         )
         self._on_format_changed()
@@ -865,32 +865,47 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------ #
     def _check_ffmpeg(self, initial: bool = False) -> None:
         st = self.ffmpeg
-        if st.available:
+        if st.usable:
             self.ffmpeg_banner.setVisible(False)
             self.ffmpeg_indicator.setText("● FFmpeg ready")
             self.ffmpeg_indicator.setStyleSheet("color:#0f7a5a; font-weight:600;")
             self.ffmpeg_indicator.setToolTip(st.describe())
         else:
-            self.ffmpeg_banner.setText(
-                "FFmpeg not found: high-resolution video (separate audio + video "
-                "streams) and MP3 conversion are unavailable. Install it with "
-                "winget install Gyan.FFmpeg, or set its location in File ▸ Set "
-                "FFmpeg location…"
-            )
+            if st.broken:
+                # The binaries exist but do not run (truncated copy, a package
+                # manager shim, or a missing DLL). Saying "not found" here
+                # sends people looking in the wrong place.
+                self.ffmpeg_banner.setText(
+                    "FFmpeg was found but could not run, so high-resolution "
+                    "merging and MP3 conversion are unavailable. Downloads "
+                    "fall back to single-file formats. Point File ▸ Set FFmpeg "
+                    "location… at a working ffmpeg.exe/ffprobe.exe folder, or "
+                    "install it with winget install Gyan.FFmpeg"
+                )
+            else:
+                self.ffmpeg_banner.setText(
+                    "FFmpeg not found: high-resolution video (separate audio + "
+                    "video streams) and MP3 conversion are unavailable. "
+                    "Downloads use single-file formats instead. Install it "
+                    "with winget install Gyan.FFmpeg, or set its location in "
+                    "File ▸ Set FFmpeg location…"
+                )
             self.ffmpeg_banner.setStyleSheet(
                 "background:#fff7ed; color:#9a3412; border:1px solid #fed7aa;"
                 "border-radius:10px; padding:10px 12px;"
             )
             self.ffmpeg_banner.setVisible(True)
-            self.ffmpeg_indicator.setText("● FFmpeg missing")
+            self.ffmpeg_indicator.setText(
+                "● FFmpeg broken" if st.broken else "● FFmpeg missing"
+            )
             self.ffmpeg_indicator.setStyleSheet("color:#d92d20; font-weight:600;")
-            self.ffmpeg_indicator.setToolTip("FFmpeg / FFprobe not found.")
+            self.ffmpeg_indicator.setToolTip(st.describe())
         if not initial:
             self._reload_quality_combo(
-                default_quality_options(st.available),
+                default_quality_options(st.usable),
                 self.quality_combo.currentData() or QUALITY_BEST,
             )
-            self.btn_audio.setEnabled(st.available)
+            self.btn_audio.setEnabled(st.usable)
 
     def _choose_ffmpeg_location(self) -> None:
         path = QFileDialog.getExistingDirectory(self, "Select the folder containing ffmpeg/ffprobe")
@@ -901,7 +916,7 @@ class MainWindow(QMainWindow):
         self.ffmpeg = detect_ffmpeg(path)
         self._check_ffmpeg()
         self._log(f"FFmpeg re-detected: {self.ffmpeg.describe()}")
-        self.btn_audio.setEnabled(self.ffmpeg.available)
+        self.btn_audio.setEnabled(self.ffmpeg.usable)
 
     # ------------------------------------------------------------------ #
     # URL / analysis
@@ -996,12 +1011,12 @@ class MainWindow(QMainWindow):
 
         if self._formats and kind == KIND_VIDEO:
             self._reload_quality_combo(
-                available_quality_options(self._formats, self.ffmpeg.available),
+                available_quality_options(self._formats, self.ffmpeg.usable),
                 self.quality_combo.currentData() or QUALITY_BEST,
             )
         else:
             self._reload_quality_combo(
-                default_quality_options(self.ffmpeg.available),
+                default_quality_options(self.ffmpeg.usable),
                 self.quality_combo.currentData() or QUALITY_BEST,
             )
         self._log("Analysis complete.")
@@ -1099,8 +1114,8 @@ class MainWindow(QMainWindow):
     def _on_format_changed(self) -> None:
         audio = self._is_audio_mode()
         self.quality_combo.setEnabled(not audio)
-        self.btn_audio.setEnabled(self.ffmpeg.available)
-        if audio and not self.ffmpeg.available:
+        self.btn_audio.setEnabled(self.ffmpeg.usable)
+        if audio and not self.ffmpeg.usable:
             self.btn_video.setChecked(True)
             return
         self._on_quality_changed()
@@ -1233,7 +1248,7 @@ class MainWindow(QMainWindow):
             return
 
         quality = self._current_quality()
-        if quality == QUALITY_AUDIO_MP3 and not self.ffmpeg.available:
+        if quality == QUALITY_AUDIO_MP3 and not self.ffmpeg.usable:
             QMessageBox.warning(self, "FFmpeg required",
                                 "MP3 conversion requires FFmpeg, which was not detected.")
             return

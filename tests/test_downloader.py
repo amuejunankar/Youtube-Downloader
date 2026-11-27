@@ -262,13 +262,102 @@ def test_download_video_finds_mp3_after_conversion(tmp_path, monkeypatch):
         return {"title": "Song"}
 
     make_fake_ydl(monkeypatch, impl)
-    ffmpeg = FFmpegStatus(ffmpeg="/usr/bin/ffmpeg", ffprobe="/usr/bin/ffprobe")
+    ffmpeg = FFmpegStatus(
+        ffmpeg="/usr/bin/ffmpeg", ffprobe="/usr/bin/ffprobe",
+        ffmpeg_version="ffmpeg version 9.0",
+        ffprobe_version="ffprobe version 9.0",
+    )
     result = DownloadService(ffmpeg_status=ffmpeg).download_video(
         url="u", outtmpl=_outtmpl(tmp_path), quality="audio_mp3",
     )
     assert result.status == STATUS_COMPLETED
     assert result.filepath == str(mp3)
     assert result.filesize == 128
+
+
+def _working_ffmpeg():
+    return FFmpegStatus(
+        ffmpeg="/usr/bin/ffmpeg", ffprobe="/usr/bin/ffprobe",
+        ffmpeg_version="ffmpeg version 9.0",
+        ffprobe_version="ffprobe version 9.0",
+    )
+
+
+def test_present_but_unrunnable_ffmpeg_is_not_trusted(tmp_path):
+    """A file called ffmpeg that cannot run must not enable merging."""
+    ffmpeg = FFmpegStatus(ffmpeg="/usr/bin/ffmpeg", ffprobe="/usr/bin/ffprobe")
+    svc = DownloadService(ffmpeg_status=ffmpeg)
+    assert svc.ffmpeg_available is False
+    assert "ffmpeg_location" not in svc.base_options()
+    tracker = DownloadTracker(
+        index=1, title_hint="t", url="u", quality="best", skip_existing=False,
+    )
+    opts = svc._download_options(
+        outtmpl=_outtmpl(tmp_path), quality="best", skip_existing=False, retries=1,
+        concurrent_fragments=1, embed_metadata=True, embed_thumbnail=False,
+        tracker=tracker,
+    )
+    # Single-file selector only: no "video+audio" merge that needs FFmpeg.
+    assert "+" not in opts["format"]
+    assert opts["postprocessors"] == []
+    assert "merge_output_format" not in opts
+
+
+def test_progressive_attempt_needs_no_ffmpeg(tmp_path):
+    svc = DownloadService(ffmpeg_status=_working_ffmpeg())
+    tracker = DownloadTracker(
+        index=1, title_hint="t", url="u", quality="best", skip_existing=False,
+    )
+    opts = svc._download_options(
+        outtmpl=_outtmpl(tmp_path), quality="best", skip_existing=False, retries=1,
+        concurrent_fragments=1, embed_metadata=True, embed_thumbnail=False,
+        tracker=tracker, progressive=True,
+    )
+    assert opts["postprocessors"] == []
+    assert "merge_output_format" not in opts
+    assert "+" not in opts["format"]
+
+
+def test_mp3_keeps_its_encoder_on_the_single_file_route(tmp_path):
+    """MP3 still has to be encoded, so that postprocessor is never dropped."""
+    svc = DownloadService(ffmpeg_status=_working_ffmpeg())
+    tracker = DownloadTracker(
+        index=1, title_hint="t", url="u", quality="audio_mp3", skip_existing=False,
+    )
+    opts = svc._download_options(
+        outtmpl=_outtmpl(tmp_path), quality="audio_mp3", skip_existing=False,
+        retries=1, concurrent_fragments=1, embed_metadata=True,
+        embed_thumbnail=False, tracker=tracker, progressive=True,
+    )
+    assert [p["key"] for p in opts["postprocessors"]][0] == "FFmpegExtractAudio"
+
+
+def test_ffmpeg_failure_falls_back_to_single_file(tmp_path, monkeypatch):
+    """An FFmpeg merge failure must end with a plain single-file download."""
+    out = tmp_path / "video.mp4"
+    calls = {"n": 0}
+    seen_postprocessors = []
+
+    def impl(self, url, download):
+        seen_postprocessors.append(self.opts.get("postprocessors"))
+        calls["n"] += 1
+        if calls["n"] < 4:
+            raise downloader.DownloadError(
+                "Postprocessing: ffmpeg exited with code 1"
+            )
+        out.write_bytes(b"x" * 100)
+        self.tracker.progress_hook({
+            "status": "finished", "filename": str(out),
+            "downloaded_bytes": 100, "total_bytes": 100, "info_dict": {},
+        })
+        return {"title": "Video"}
+
+    make_fake_ydl(monkeypatch, impl)
+    result = DownloadService(ffmpeg_status=_working_ffmpeg()).download_video(
+        url="u", outtmpl=_outtmpl(tmp_path), quality="best",
+    )
+    assert result.status == STATUS_COMPLETED
+    assert seen_postprocessors[-1] == []
 
 
 def test_download_video_mp3_requires_ffmpeg(tmp_path, monkeypatch):
@@ -366,7 +455,7 @@ def test_download_video_bad_url_fails_without_retrying(tmp_path, monkeypatch):
 
 
 def test_download_video_network_error_tries_every_method(tmp_path, monkeypatch):
-    """A network failure is exactly what the other two methods are for."""
+    """A network failure is exactly what the other methods are for."""
     attempts = {"n": 0}
 
     def impl(self, url, download):
@@ -380,9 +469,9 @@ def test_download_video_network_error_tries_every_method(tmp_path, monkeypatch):
     result = _service().download_video(
         url="u", outtmpl=_outtmpl(tmp_path), quality="best",
     )
-    assert attempts["n"] == 3
+    assert attempts["n"] == 4
     assert result.status == STATUS_FAILED
-    assert "3 download methods failed" in (result.error or "").lower()
+    assert "4 download methods failed" in (result.error or "").lower()
     assert "network" in (result.error or "").lower()
 
 
