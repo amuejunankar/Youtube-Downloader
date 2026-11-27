@@ -31,7 +31,7 @@
   "name": "YouTube Downloader",
   "applicationCategory": "MultimediaApplication",
   "operatingSystem": "Windows 10, Windows 11, Android 7.0+",
-  "softwareVersion": "1.3.5",
+  "softwareVersion": "1.3.6",
   "description": "Open-source YouTube downloader for Windows and Android with 4K video, MP3 audio, and playlist support.",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
   "downloadUrl": "https://github.com/amuejunankar/Youtube-Downloader/releases/latest"
@@ -107,7 +107,7 @@
 <main id="main">
   <section class="hero wrap">
     <div class="hero-copy">
-      <span class="pill reveal"><span class="pulse"></span> v<span id="version">1.3.5</span> &middot; Windows &amp; Android</span>
+      <span class="pill reveal"><span class="pulse"></span> v<span id="version">1.3.6</span> &middot; Windows &amp; Android</span>
       <h1 class="reveal">Save YouTube videos<br><span class="grad">the way you want.</span></h1>
       <p class="lede reveal">A fast, free, open-source downloader for Windows and Android. Pick a quality, merge video and audio, extract MP3, or grab a whole playlist — no ads, no account, no command line.</p>
       <div class="hero-cta reveal">
@@ -152,14 +152,14 @@
   <section class="wrap">
     <div class="whatsnew reveal">
       <div class="whatsnew-copy">
-        <span class="badge">New in <span data-tag>1.3.5</span></span>
-                <h2>A working FFmpeg, and a way around it</h2>
-                <p>The Windows build was bundling a package-manager shortcut instead of the real converter, so merging video with audio failed. This release ships a verified static FFmpeg &mdash; and keeps downloading when FFmpeg is missing.</p>
+        <span class="badge">New in <span data-tag>1.3.6</span></span>
+                <h2>A yt-dlp that keeps itself current</h2>
+                <p>YouTube changes its player constantly, and a downloader frozen inside an installer goes stale. This release checks PyPI at launch, installs a newer yt-dlp into your own user folder, and proves it works before switching to it.</p>
       </div>
       <ul class="whatsnew-list">
-                <li><strong>Real FFmpeg inside</strong>A full static build, checked by the release pipeline before it ships.</li>
-                <li><strong>Works without FFmpeg</strong>If FFmpeg is missing or will not run, the app downloads a single-file format instead of failing.</li>
-                <li><strong>Honest status</strong>The status bar separates a missing FFmpeg from one that is present but broken.</li>
+                <li><strong>Updates without reinstalling</strong>A newer yt-dlp is downloaded and verified in the background; the bundled copy stays put as the offline fallback.</li>
+                <li><strong>Safe to try</strong>Each new copy has to pass a health check first, and Help &rsaquo; Roll back yt-dlp update returns to the copy that worked.</li>
+                <li><strong>Always visible</strong>The status bar shows which yt-dlp is in use, and whether an update is waiting for a restart.</li>
       </ul>
     </div>
   </section>

@@ -26,6 +26,9 @@ hand-picked playlist entries — including MP3 audio.
 - Android: saves through MediaStore and accepts shared YouTube links.
 - Ships its own JavaScript runtime (QuickJS-NG) and yt-dlp challenge solver,
   so downloads work without installing Deno, Node or anything else.
+- Desktop: checks PyPI for a newer yt-dlp at launch and installs it into a
+  per-user folder only after a health check. The bundled copy stays as the
+  offline fallback, and **Help ▸ Roll back yt-dlp update** undoes an update.
 - No ads, no tracking, and no cookies or tokens written to logs.
 
 ## Install
@@ -95,7 +98,11 @@ pytest tests/test_integration.py -v
 
 ## Troubleshooting
 
-- **Extraction errors after a YouTube change:** `pip install -U yt-dlp`.
+- **Extraction errors after a YouTube change:** restart the app; it checks
+  PyPI for a newer yt-dlp on launch. **Help ▸ Check for yt-dlp update…** does
+  the same on demand, and **Help ▸ Roll back yt-dlp update** returns to the
+  previous or bundled copy. `pip install -U yt-dlp` is only needed when running
+  from source.
 - **High resolutions unavailable, or "FFmpeg could not finish the download":**
   the app merges video with audio through FFmpeg and falls back to
   single-file formats (no merging, no MP3) when FFmpeg is missing or cannot

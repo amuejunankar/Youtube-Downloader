@@ -23,6 +23,7 @@ DEFAULTS: Dict[str, Any] = {
     "retries": 3,
     "concurrent_fragments": 2,     # lower = fewer HTTP 403/429 from YouTube
     "ffmpeg_location": "",
+    "auto_update_ytdlp": True,     # check PyPI for a newer yt-dlp on launch
     "embed_thumbnail": False,
     "embed_metadata": True,
     "write_subs": False,

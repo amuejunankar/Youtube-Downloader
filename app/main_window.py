@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from PySide6.QtCore import Qt, QThread, Slot
+from PySide6.QtCore import Qt, QThread, QTimer, Slot
 from PySide6.QtGui import (
     QAction,
     QColor,
@@ -58,7 +58,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from . import APP_NAME, __version__
+from . import APP_NAME, __version__, ytdlp_updater
 from .downloader import (
     KIND_PLAYLIST,
     KIND_VIDEO,
@@ -85,7 +85,7 @@ from .utils import (
     normalize_url,
     validate_url,
 )
-from .workers import AnalyzeWorker, DownloadWorker
+from .workers import AnalyzeWorker, DownloadWorker, YtdlpUpdateWorker
 
 COL_CHECK, COL_INDEX, COL_TITLE, COL_DURATION, COL_STATUS = range(5)
 
@@ -488,6 +488,9 @@ class MainWindow(QMainWindow):
         self._analyze_worker: Optional[AnalyzeWorker] = None
         self._dl_thread: Optional[QThread] = None
         self._dl_worker: Optional[DownloadWorker] = None
+        self._ytdlp_thread: Optional[QThread] = None
+        self._ytdlp_worker: Optional[YtdlpUpdateWorker] = None
+        self._ytdlp_manual = False
 
         self._total_tasks = 0
         self._finished_tasks = 0
@@ -502,6 +505,9 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._apply_settings()
         self._check_ffmpeg(initial=True)
+        # Check PyPI for a newer yt-dlp once the window is up; silent unless it
+        # installs something.
+        QTimer.singleShot(1200, self._auto_update_ytdlp)
 
     # ------------------------------------------------------------------ #
     # UI construction
@@ -527,6 +533,15 @@ class MainWindow(QMainWindow):
         file_menu.addAction(act_exit)
 
         help_menu = self.menuBar().addMenu("&Help")
+        self.act_ytdlp_update = QAction("Check for yt-dlp update…", self)
+        self.act_ytdlp_update.triggered.connect(lambda: self._start_ytdlp_update(manual=True))
+        help_menu.addAction(self.act_ytdlp_update)
+
+        self.act_ytdlp_rollback = QAction("Roll back yt-dlp update", self)
+        self.act_ytdlp_rollback.triggered.connect(self._rollback_ytdlp)
+        help_menu.addAction(self.act_ytdlp_rollback)
+        help_menu.addSeparator()
+
         act_about = QAction("About", self)
         act_about.triggered.connect(self._show_about)
         help_menu.addAction(act_about)
@@ -790,6 +805,10 @@ class MainWindow(QMainWindow):
         root.addWidget(scroll, 1)
 
         self.statusBar().showMessage("Ready")
+        self.ytdlp_indicator = QLabel()
+        self.ytdlp_indicator.setStyleSheet("color:#475569;")
+        self._refresh_ytdlp_indicator()
+        self.statusBar().addPermanentWidget(self.ytdlp_indicator)
         self.ffmpeg_indicator = QLabel()
         self.statusBar().addPermanentWidget(self.ffmpeg_indicator)
 
@@ -917,6 +936,127 @@ class MainWindow(QMainWindow):
         self._check_ffmpeg()
         self._log(f"FFmpeg re-detected: {self.ffmpeg.describe()}")
         self.btn_audio.setEnabled(self.ffmpeg.usable)
+
+    # ------------------------------------------------------------------ #
+    # yt-dlp updates
+    # ------------------------------------------------------------------ #
+    def _ytdlp_label(self, status: Optional[Dict[str, Any]] = None) -> str:
+        status = status or ytdlp_updater.active_status()
+        version = status.get("version") or "unknown"
+        source = "updated" if status.get("source") == "updated" else "bundled"
+        return f"yt-dlp {version} · {source}"
+
+    def _refresh_ytdlp_indicator(self, text: Optional[str] = None) -> None:
+        status = ytdlp_updater.active_status()
+        self.ytdlp_indicator.setText(text or self._ytdlp_label(status))
+        tip = [f"yt-dlp {status.get('version') or 'unknown'} ({status.get('source')})"]
+        if status.get("path"):
+            tip.append(str(status["path"]))
+        tip.append("Help \u25b8 Check for yt-dlp update\u2026 installs a newer copy for this account.")
+        tip.append("Help \u25b8 Roll back yt-dlp update returns to the previous or bundled copy.")
+        self.ytdlp_indicator.setToolTip("\n".join(tip))
+
+    def _auto_update_ytdlp(self) -> None:
+        if not self.settings.get("auto_update_ytdlp", True):
+            return
+        if self._ytdlp_thread is not None or not ytdlp_updater.check_due():
+            return
+        self._start_ytdlp_update(manual=False)
+
+    def _start_ytdlp_update(self, manual: bool) -> None:
+        if self._ytdlp_thread is not None:
+            return
+        if self._dl_thread is not None:
+            if manual:
+                self._set_hint("A download is running; check for updates when it finishes.", "Hint")
+            return
+        self._ytdlp_manual = manual
+        self.act_ytdlp_update.setEnabled(False)
+        self.act_ytdlp_rollback.setEnabled(False)
+        if manual:
+            self.statusBar().showMessage("Checking PyPI for a newer yt-dlp\u2026")
+        self._log("Checking PyPI for a yt-dlp update\u2026")
+        self._ytdlp_thread = QThread(self)
+        self._ytdlp_worker = YtdlpUpdateWorker(force=manual)
+        self._ytdlp_worker.moveToThread(self._ytdlp_thread)
+        self._ytdlp_thread.started.connect(self._ytdlp_worker.run)
+        self._ytdlp_worker.log.connect(self._log)
+        self._ytdlp_worker.finished.connect(self._on_ytdlp_update_finished)
+        self._ytdlp_worker.finished.connect(self._ytdlp_thread.quit)
+        self._ytdlp_thread.finished.connect(self._cleanup_ytdlp_update)
+        self._ytdlp_thread.start()
+
+    @Slot(dict)
+    def _on_ytdlp_update_finished(self, result: Dict[str, Any]) -> None:
+        action = result.get("action")
+        latest = result.get("latest") or result.get("version")
+        if action == "installed":
+            message = f"yt-dlp {latest} was installed for this user. Restart {APP_NAME} to use it."
+            self._refresh_ytdlp_indicator(text=f"yt-dlp {latest} · restart to use")
+            self.statusBar().showMessage(message, 15000)
+            if self._ytdlp_manual:
+                QMessageBox.information(
+                    self, "yt-dlp updated",
+                    message + "\n\nHelp \u25b8 Roll back yt-dlp update returns to the copy that "
+                    "was working before.",
+                )
+        elif action == "up-to-date":
+            self.statusBar().showMessage("yt-dlp is up to date.", 6000)
+            if self._ytdlp_manual:
+                QMessageBox.information(
+                    self, "yt-dlp is up to date", result.get("message") or ""
+                )
+        elif action == "blocked":
+            if self._ytdlp_manual:
+                QMessageBox.information(self, "yt-dlp update", result.get("message") or "")
+        elif action in ("error", "none"):
+            detail = result.get("error") or result.get("message") or "Unknown error"
+            if self._ytdlp_manual:
+                QMessageBox.warning(self, "yt-dlp update failed", detail)
+            else:
+                self._log(f"yt-dlp update check skipped: {detail}")
+        self._log(f"yt-dlp: {result.get('message') or result.get('error') or action}")
+
+    @Slot()
+    def _cleanup_ytdlp_update(self) -> None:
+        if self._ytdlp_worker:
+            self._ytdlp_worker.deleteLater()
+        if self._ytdlp_thread:
+            self._ytdlp_thread.deleteLater()
+        self._ytdlp_worker = None
+        self._ytdlp_thread = None
+        self.act_ytdlp_update.setEnabled(True)
+        self.act_ytdlp_rollback.setEnabled(True)
+
+    def _rollback_ytdlp(self) -> None:
+        store = ytdlp_updater.default_store()
+        has_previous = (store.previous / "yt_dlp" / "__init__.py").is_file()
+        question = (
+            "Restore the yt-dlp copy that was in use before the last update?"
+            if has_previous
+            else "Remove the downloaded yt-dlp and go back to the copy bundled with this app?"
+        )
+        reply = QMessageBox.question(
+            self, "Roll back yt-dlp",
+            question + "\n\nRestart the app afterwards.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        result = ytdlp_updater.rollback()
+        if result.get("ok"):
+            self._log(f"yt-dlp rollback: {result.get('message')}")
+            self._refresh_ytdlp_indicator(text="yt-dlp · restart to apply")
+            QMessageBox.information(
+                self, "yt-dlp rolled back",
+                f"{result.get('message')}\n\nRestart {APP_NAME} to apply it.",
+            )
+        else:
+            QMessageBox.warning(
+                self, "yt-dlp rollback",
+                result.get("error") or "There is nothing to roll back.",
+            )
 
     # ------------------------------------------------------------------ #
     # URL / analysis
@@ -1185,12 +1325,15 @@ class MainWindow(QMainWindow):
             subprocess.Popen(["xdg-open", str(log_dir)])
 
     def _show_about(self) -> None:
+        yt = ytdlp_updater.active_status()
         QMessageBox.about(
             self, f"About {APP_NAME}",
             f"<b>{APP_NAME}</b> v{__version__}<br><br>"
             "A PySide6 + yt-dlp downloader for YouTube videos and playlists.<br>"
             "Download only content you are authorised to download.<br><br>"
-            f"<b>FFmpeg:</b> {self.ffmpeg.describe().replace(chr(10), '<br>')}",
+            f"<b>FFmpeg:</b> {self.ffmpeg.describe().replace(chr(10), '<br>')}<br><br>"
+            f"<b>yt-dlp:</b> {yt.get('version') or 'unknown'} ({yt.get('source')})"
+            + (f"<br>{yt['path']}" if yt.get("path") else ""),
         )
 
     # ------------------------------------------------------------------ #
@@ -1455,5 +1598,10 @@ class MainWindow(QMainWindow):
         if self._analyze_thread is not None:
             self._analyze_thread.quit()
             self._analyze_thread.wait(5000)
+        if self._ytdlp_thread is not None:
+            # The update may be mid-download; it writes only to its own folder,
+            # so leaving it to finish would block closing the window.
+            self._ytdlp_thread.quit()
+            self._ytdlp_thread.wait(3000)
         self._save_settings()
         event.accept()

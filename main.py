@@ -83,6 +83,20 @@ def main(argv: list[str] | None = None) -> int:
     if sys.stderr is None:
         sys.stderr = open(os.devnull, "w")
 
+    raw_args = list(sys.argv[1:] if argv is None else argv)
+    if "--ytdlp-healthcheck" in raw_args:
+        # The updater re-enters this executable to try a candidate yt-dlp in a
+        # clean interpreter before the app starts using it.
+        from app.ytdlp_updater import healthcheck_cli
+
+        return healthcheck_cli(raw_args)
+
+    # A verified per-user yt-dlp copy takes priority over the bundled one. This
+    # must happen before anything imports yt_dlp (app.downloader does).
+    from app.ytdlp_updater import activate
+
+    activate()
+
     parser = argparse.ArgumentParser(description=f"{APP_NAME} v{__version__}")
     parser.add_argument("--version", action="store_true", help="print version and exit")
     parser.add_argument("--selftest", action="store_true",
@@ -102,7 +116,12 @@ def main(argv: list[str] | None = None) -> int:
         from app.main_window import MainWindow  # noqa: F401
         from app.settings import Settings  # noqa: F401
         from app.utils import detect_ffmpeg
-        from app.workers import AnalyzeWorker, DownloadWorker  # noqa: F401
+        from app.workers import AnalyzeWorker, DownloadWorker, YtdlpUpdateWorker  # noqa: F401
+        from app.ytdlp_updater import active_status
+
+        yt = active_status()
+        logger.info("yt-dlp %s (%s)", yt.get("version"), yt.get("source"))
+        print(f"  yt-dlp : {yt.get('version')} ({yt.get('source')})")
 
         st = detect_ffmpeg()
         logger.info("Self-test imports OK. FFmpeg usable=%s (%s)", st.usable, st.source)

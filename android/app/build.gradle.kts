@@ -19,8 +19,8 @@ android {
         applicationId = "com.amuejunankar.ytdl"
         minSdk = 24
         targetSdk = 36
-        versionCode = 8
-        versionName = "1.3.5"
+        versionCode = 9
+        versionName = "1.3.6"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")

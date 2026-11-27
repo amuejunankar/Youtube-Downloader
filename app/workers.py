@@ -47,6 +47,27 @@ class AnalyzeWorker(QObject):
             self.failed.emit(str(exc))
 
 
+class YtdlpUpdateWorker(QObject):
+    """Checks PyPI for a newer yt-dlp and installs it off the GUI thread."""
+
+    log = Signal(str)
+    finished = Signal(dict)
+
+    def __init__(self, force: bool = False):
+        super().__init__()
+        self._force = force
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            from . import ytdlp_updater
+
+            result = ytdlp_updater.update_once(force=self._force, log_cb=self.log.emit)
+        except Exception as exc:  # noqa: BLE001 - must never crash the thread
+            result = {"ok": False, "action": "error", "error": str(exc)}
+        self.finished.emit(result)
+
+
 class DownloadWorker(QObject):
     """Runs a batch of downloads sequentially and reports granular progress."""
 
