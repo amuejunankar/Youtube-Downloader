@@ -64,6 +64,17 @@
       });
 
       (release.assets || []).forEach((asset) => {
+        // Point the buttons at this release's own asset URL, so the link a
+        // visitor copies names the version it downloads. The "latest" hrefs in
+        // the markup stay as the no-JS / offline fallback.
+        if (asset.browser_download_url) {
+          document
+            .querySelectorAll(`[data-asset="${CSS.escape(asset.name)}"]`)
+            .forEach((link) => {
+              link.href = asset.browser_download_url;
+            });
+        }
+
         const size = human(asset.size);
         if (!size) return;
         document
