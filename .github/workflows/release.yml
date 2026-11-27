@@ -75,30 +75,33 @@ jobs:
           YouTubeDownloader.spec
 
       # Guards the packaging bug that shipped a broken ffmpeg.exe: the copy
-      # that ends up next to the app must answer -version.
+      # that ends up next to the app must be a real binary and must answer
+      # -version. A package-manager shim is a few hundred KB, a real static
+      # build is around 100 MB, so the size check alone rules it out.
       - name: Verify the bundled FFmpeg runs
         shell: pwsh
         run: |
-          $candidates = @(
-            "dist\YouTubeDownloader\_internal\ffmpeg.exe",
-            "dist\YouTubeDownloader\ffmpeg.exe"
-          ) | Where-Object { Test-Path $_ }
-          if (-not $candidates) { throw "No ffmpeg.exe in the app folder build." }
-          $exe = $candidates[0]
-          $first = & $exe -version 2>&1 | Select-Object -First 1
-          Write-Host "$first"
-          if ($LASTEXITCODE -ne 0 -or "$first" -notmatch "ffmpeg version") {
-            throw "Bundled $exe does not run: $first"
+          function Find-Binary($name) {
+            $found = @(Get-ChildItem -Path "dist\YouTubeDownloader" -Recurse -Filter $name -ErrorAction SilentlyContinue)
+            if ($found.Count -eq 0) { throw "No $name in the app folder build." }
+            return $found[0].FullName
           }
-          foreach ($probe in @(
-            (Join-Path (Split-Path $exe) "ffprobe.exe"),
-            "dist\YouTubeDownloader\ffprobe.exe"
-          )) {
-            if (Test-Path $probe) {
-              & $probe -version | Select-Object -First 1
-              if ($LASTEXITCODE -ne 0) { throw "Bundled $probe does not run." }
+          function Assert-Runs($path, $marker) {
+            $info = Get-Item $path
+            Write-Host "Checking $($info.FullName) ($([math]::Round($info.Length / 1MB, 1)) MB)"
+            if ($info.Length -lt 20MB) {
+              throw "$($info.FullName) is only $($info.Length) bytes - a shim, not a real binary."
             }
+            # Out-String consumes the whole stream: piping a native command into
+            # Select-Object -First ends it early and reports a bogus exit code.
+            $out = & $path -version 2>&1 | Out-String
+            $code = $LASTEXITCODE
+            Write-Host $out.Trim()
+            if ($code -ne 0) { throw "$path exited with $code" }
+            if ($out -notmatch $marker) { throw "$path did not report a $marker line." }
           }
+          Assert-Runs (Find-Binary "ffmpeg.exe") "ffmpeg version"
+          Assert-Runs (Find-Binary "ffprobe.exe") "ffprobe version"
 
       - name: Read the app version
         id: version
