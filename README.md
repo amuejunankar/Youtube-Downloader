@@ -82,7 +82,8 @@ identity, but Windows SmartScreen still treats a new app cautiously: reputation
 builds from the publisher certificate over successive signed releases, so the
 first signed downloads can still show a prompt. Signed or not, every release now
 ships `SHA256SUMS.txt` so a download can be checked with
-`certutil -hashfile <file> SHA256`.
+`certutil -hashfile <file> SHA256` on Windows, or `sha256sum -c SHA256SUMS.txt`
+next to the downloaded files on macOS and Linux.
 
 ## Run from source
 

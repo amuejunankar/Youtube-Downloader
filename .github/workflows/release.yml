@@ -198,11 +198,15 @@ jobs:
       - name: Write SHA-256 checksums
         shell: pwsh
         run: |
-          Get-ChildItem out -File | Where-Object Name -ne 'SHA256SUMS.txt' | ForEach-Object {
+          $lines = Get-ChildItem out -File | Where-Object Name -ne 'SHA256SUMS.txt' | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
             "$hash  $($_.Name)"
-          } | Set-Content -Path out\SHA256SUMS.txt -Encoding ascii
-          Get-Content out\SHA256SUMS.txt
+          }
+          # LF endings, not the CRLF Set-Content writes on Windows: sha256sum -c
+          # reads a stray CR as part of the file name and fails to find it.
+          $sums = "$PWD/out/SHA256SUMS.txt"
+          [IO.File]::WriteAllText($sums, (($lines -join "`n") + "`n"))
+          Get-Content $sums
 
       - uses: actions/upload-artifact@v4
         with:
