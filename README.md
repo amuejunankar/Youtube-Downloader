@@ -47,6 +47,43 @@ prompted. The app requires Android 7.0+ and is built for `arm64-v8a` phones
 (plus `x86_64` emulators). Videos are saved to `Movies/YouTube Downloader` and
 audio to `Music/YouTube Downloader`.
 
+## Code signing
+
+The Windows builds are Authenticode-signed by CI when signing credentials are
+present in the repository, so the installer and the portable `.exe` show a
+publisher name instead of an unknown one. Signing uses
+[Azure Artifact Signing](https://learn.microsoft.com/azure/artifact-signing/)
+(formerly Trusted Signing) — about $10/month, no USB token, and it works from a
+Windows GitHub runner. Public Trust certificates are issued to organizations in
+the USA, Canada, the EU, the UK, Australia, New Zealand, Japan, South Korea,
+Singapore, Switzerland, Norway and Israel, and to individuals in the USA and
+Canada; outside those places a certificate from a CA such as SSL.com or Sectigo
+is the alternative.
+
+To turn it on, create the Artifact Signing account, an identity validation and a
+certificate profile, then register an app in Microsoft Entra ID with a
+federated credential for this repository and add these repository secrets:
+
+| Secret | Value |
+| --- | --- |
+| `AZURE_SIGNING_CLIENT_ID` | Application (client) ID of the app registration |
+| `AZURE_SIGNING_TENANT_ID` | Directory (tenant) ID |
+| `AZURE_SIGNING_SUBSCRIPTION_ID` | Subscription that holds the signing account |
+| `AZURE_SIGNING_ENDPOINT` | Account endpoint, e.g. `https://eus.codesigning.azure.net/` |
+| `AZURE_SIGNING_ACCOUNT` | Artifact Signing account name |
+| `AZURE_SIGNING_CERTIFICATE_PROFILE` | Certificate profile name |
+
+The next build signs both `.exe` files, verifies each signature with
+`Get-AuthenticodeSignature` and fails if any comes back invalid. With the secrets
+missing the build still publishes, and the log carries a warning.
+
+Signing removes the unknown-publisher warning and gives each release a stable
+identity, but Windows SmartScreen still treats a new app cautiously: reputation
+builds from the publisher certificate over successive signed releases, so the
+first signed downloads can still show a prompt. Signed or not, every release now
+ships `SHA256SUMS.txt` so a download can be checked with
+`certutil -hashfile <file> SHA256`.
+
 ## Run from source
 
 Requires Python 3.11–3.13 on Windows.

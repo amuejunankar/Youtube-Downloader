@@ -10,6 +10,10 @@ name: Build and release Windows and Android
 # The Windows job runs on a Windows runner (PyInstaller + Inno Setup); the
 # Android job builds the signed release APK on Linux. A separate publish job
 # waits for both, so a release never goes out half-built.
+#
+# The Windows binaries are Authenticode-signed when signing credentials are
+# configured (see the "Code signing" section of README.md). Without them the
+# build still succeeds and publishes unsigned, with a warning in the log.
 
 on:
   workflow_dispatch:
@@ -29,6 +33,8 @@ on:
 
 permissions:
   contents: write
+  # Lets the Windows job sign in to Azure with OIDC instead of a client secret.
+  id-token: write
 
 jobs:
   windows:
@@ -123,6 +129,80 @@ jobs:
           Copy-Item "dist\portable\YouTubeDownloader.exe" `
                     "out\YouTubeDownloader_Portable.exe"
           Get-ChildItem out | Select-Object Name, Length
+
+      # Signing is opt-in, so a fork, or a push before the signing account
+      # exists, still produces a release. A half-configured repository signs
+      # nothing and says so, rather than failing or shipping a broken signature.
+      - name: Check for code-signing credentials
+        id: signing
+        shell: pwsh
+        env:
+          CLIENT_ID: ${{ secrets.AZURE_SIGNING_CLIENT_ID }}
+          TENANT_ID: ${{ secrets.AZURE_SIGNING_TENANT_ID }}
+          SUBSCRIPTION_ID: ${{ secrets.AZURE_SIGNING_SUBSCRIPTION_ID }}
+          ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          PROFILE: ${{ secrets.AZURE_SIGNING_CERTIFICATE_PROFILE }}
+        run: |
+          $names = 'CLIENT_ID', 'TENANT_ID', 'SUBSCRIPTION_ID', 'ENDPOINT', 'ACCOUNT', 'PROFILE'
+          $missing = @($names | Where-Object { -not [Environment]::GetEnvironmentVariable($_) })
+          if ($missing.Count -gt 0) {
+            Write-Warning "Not signing: missing $($missing -join ', '). This release ships unsigned and Windows will show an unknown publisher."
+            "enabled=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          }
+          else {
+            "enabled=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          }
+
+      - name: Sign in to Azure for code signing
+        if: steps.signing.outputs.enabled == 'true'
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_SIGNING_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_SIGNING_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SIGNING_SUBSCRIPTION_ID }}
+
+      - name: Sign the installer and the portable build
+        if: steps.signing.outputs.enabled == 'true'
+        uses: azure/artifact-signing-action@v2
+        with:
+          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_SIGNING_CERTIFICATE_PROFILE }}
+          files-folder: ${{ github.workspace }}\out
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      # A signing step that silently produced nothing is worse than no signing:
+      # the download then looks verified while it is not, so fail the build.
+      - name: Verify the signatures
+        if: steps.signing.outputs.enabled == 'true'
+        shell: pwsh
+        run: |
+          $bad = 0
+          Get-ChildItem out -Filter *.exe | ForEach-Object {
+            $sig = Get-AuthenticodeSignature $_.FullName
+            $who = if ($sig.SignerCertificate) {
+              $sig.SignerCertificate.GetNameInfo('SimpleName', $false)
+            }
+            else { '<unsigned>' }
+            Write-Host "$($_.Name): $($sig.Status) - $who"
+            if ($sig.Status -ne 'Valid') { $bad++ }
+          }
+          if ($bad -gt 0) { throw "$bad release file(s) failed signature verification." }
+
+      # Published next to the binaries so anyone can confirm what they got,
+      # which matters most while new builds are still earning SmartScreen trust.
+      - name: Write SHA-256 checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem out -File | Where-Object Name -ne 'SHA256SUMS.txt' | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($_.Name)"
+          } | Set-Content -Path out\SHA256SUMS.txt -Encoding ascii
+          Get-Content out\SHA256SUMS.txt
 
       - uses: actions/upload-artifact@v4
         with:
