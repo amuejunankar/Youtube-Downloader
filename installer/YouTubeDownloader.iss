@@ -15,7 +15,7 @@
 
 #define AppName "YouTube Downloader"
 #ifndef AppVersion
-  #define AppVersion "1.3.6"
+  #define AppVersion "1.3.7"
 #endif
 #define AppPublisher "YouTube Downloader"
 #define AppExeName "YouTubeDownloader.exe"

@@ -3,7 +3,7 @@
 
   const OWNER = "amuejunankar";
   const REPO = "Youtube-Downloader";
-  const TAG = "1.3.6";
+  const TAG = "1.3.7";
 
   const repoUrl = `https://github.com/${OWNER}/${REPO}`;
   // Windows builds are rebuilt by the "Build Windows app and installer"
@@ -14,6 +14,7 @@
     "YouTubeDownloader-Installer.exe": `${latestBase}/YouTubeDownloader-Installer.exe`,
     "YouTubeDownloader_Portable.exe": `${latestBase}/YouTubeDownloader_Portable.exe`,
     "YouTubeDownloader-Android.apk": `${latestBase}/YouTubeDownloader-Android.apk`,
+    "SHA256SUMS.txt": `${latestBase}/SHA256SUMS.txt`,
   };
 
   /* ---------- Download links ---------- */

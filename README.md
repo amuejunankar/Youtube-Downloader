@@ -9,6 +9,7 @@ hand-picked playlist entries — including MP3 audio.
 **[Windows installer](https://github.com/amuejunankar/Youtube-Downloader/releases/latest/download/YouTubeDownloader-Installer.exe)** ·
 **[Portable .exe](https://github.com/amuejunankar/Youtube-Downloader/releases/latest/download/YouTubeDownloader_Portable.exe)** ·
 **[Android APK](https://github.com/amuejunankar/Youtube-Downloader/releases/latest/download/YouTubeDownloader-Android.apk)** ·
+**[SHA-256 checksums](https://github.com/amuejunankar/Youtube-Downloader/releases/latest/download/SHA256SUMS.txt)** ·
 **[Website](https://amuejunankar.github.io/Youtube-Downloader/)**
 
 > Download only content you own or are authorised to download. This app does not
